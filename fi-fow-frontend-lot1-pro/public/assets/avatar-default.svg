@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
+  <title id="title">Avatar par défaut</title>
+  <rect width="160" height="160" rx="80" fill="#eeeaff"/>
+  <circle cx="80" cy="61" r="28" fill="#7656e8"/>
+  <path d="M29 146c4-31 24-49 51-49s47 18 51 49" fill="#5a35d6"/>
+</svg>

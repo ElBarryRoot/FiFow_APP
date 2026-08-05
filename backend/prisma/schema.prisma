@@ -1,0 +1,1144 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+  SUPER_ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  BANNED
+  ARCHIVED
+}
+
+enum SellerVerificationStatus {
+  NOT_REQUESTED
+  PENDING
+  APPROVED
+  REJECTED
+  REMOVED
+}
+
+enum ProductStatus {
+  DRAFT
+  PENDING_REVIEW
+  AVAILABLE
+  RESERVED
+  SOLD
+  REJECTED
+  HIDDEN
+  ARCHIVED
+}
+
+enum ModerationStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  FLAGGED
+  HIDDEN
+}
+
+enum ProductCondition {
+  NEW
+  LIKE_NEW
+  GOOD
+  FAIR
+  TO_REPAIR
+}
+
+enum HandoverMode {
+  HAND_TO_HAND
+  HOME_DELIVERY
+  PICKUP_POINT
+}
+
+enum ConversationStatus {
+  ACTIVE
+  ARCHIVED
+  BLOCKED
+  DISPUTED
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  SYSTEM
+}
+
+enum OfferStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  COUNTERED
+  WITHDRAWN
+  EXPIRED
+}
+
+enum OrderStatus {
+  AWAITING_SELLER_CONFIRMATION
+  AWAITING_PAYMENT
+  PAID
+  RESERVED
+  PREPARING
+  READY_FOR_HANDOVER
+  IN_DELIVERY
+  RECEIVED
+  COMPLETED
+  CANCELLED
+  DISPUTED
+  REFUNDED
+}
+
+enum OrderActor {
+  SYSTEM
+  BUYER
+  SELLER
+  ADMIN
+  PAYMENT_PROVIDER
+}
+
+enum Currency {
+  GNF
+}
+
+enum PaymentProvider {
+  MOCK
+  ORANGE_MONEY
+  MTN_MOMO
+  OTHER
+}
+
+enum PaymentType {
+  ORDER
+  DELIVERY
+  BOOST
+  SUBSCRIPTION
+}
+
+enum PaymentStatus {
+  CREATED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+  REFUND_PENDING
+  REFUNDED
+}
+
+enum RefundStatus {
+  REQUESTED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum PayoutStatus {
+  BLOCKED
+  SCHEDULED
+  PROCESSING
+  SUCCEEDED
+  FAILED
+  CANCELLED
+}
+
+enum LedgerDirection {
+  DEBIT
+  CREDIT
+}
+
+enum LedgerEntryType {
+  PAYMENT
+  BUYER_PROTECTION
+  DELIVERY_FEE
+  SELLER_PAYABLE
+  PAYOUT
+  REFUND
+  ADJUSTMENT
+}
+
+enum DeliveryStatus {
+  NOT_REQUIRED
+  PENDING
+  PICKUP_READY
+  IN_TRANSIT
+  DELIVERED
+  FAILED
+  CANCELLED
+}
+
+enum ReviewStatus {
+  PUBLISHED
+  PENDING_MODERATION
+  HIDDEN
+  ARCHIVED
+}
+
+enum ReportTargetType {
+  PRODUCT
+  USER
+  MESSAGE
+  REVIEW
+  PAYMENT
+  CONVERSATION
+  ORDER
+}
+
+enum ReportReason {
+  SCAM
+  FAKE_PRODUCT
+  FORBIDDEN_PRODUCT
+  BAD_BEHAVIOR
+  OFFENSIVE_CONTENT
+  MISLEADING_PRICE
+  STOLEN_IMAGE
+  UNREACHABLE_SELLER
+  PAYMENT_ISSUE
+  DELIVERY_ISSUE
+  OTHER
+}
+
+enum ReportStatus {
+  OPEN
+  UNDER_REVIEW
+  RESOLVED
+  REJECTED
+}
+
+enum ReportPriority {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ModerationActionType {
+  WARNING
+  HIDE_PRODUCT
+  ARCHIVE_PRODUCT
+  RESTORE_PRODUCT
+  SUSPEND_USER
+  BAN_USER
+  RESTORE_USER
+  REMOVE_VERIFIED_BADGE
+  HIDE_REVIEW
+  RESTORE_REVIEW
+  REJECT_REPORT
+  BLOCK_CONVERSATION
+  UNBLOCK_CONVERSATION
+  REFUND_PAYMENT
+}
+
+enum NotificationType {
+  NEW_MESSAGE
+  OFFER_RECEIVED
+  OFFER_ACCEPTED
+  OFFER_REJECTED
+  ORDER_CREATED
+  ORDER_STATUS_CHANGED
+  PAYMENT_SUCCEEDED
+  PAYMENT_FAILED
+  REFUND_UPDATED
+  PRODUCT_LIKED
+  PRODUCT_FAVORITED
+  PRODUCT_MODERATED
+  REVIEW_RECEIVED
+  BOOST_ACTIVATED
+  BOOST_EXPIRED
+  SECURITY_ALERT
+  SYSTEM
+}
+
+enum BoostStatus {
+  PENDING_PAYMENT
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  REJECTED
+}
+
+enum BoostPlacement {
+  HOME_FEED
+  SEARCH_RESULTS
+  CATEGORY_PAGE
+  SIMILAR_PRODUCTS
+}
+
+enum SettingValueType {
+  STRING
+  NUMBER
+  BOOLEAN
+  JSON
+}
+
+enum SupportTicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_FOR_USER
+  RESOLVED
+  CLOSED
+}
+
+enum SupportTicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id                       String                   @id @default(uuid()) @db.Uuid
+  email                    String                   @unique @db.VarChar(254)
+  passwordHash             String?                  @map("password_hash") @db.VarChar(255)
+  fullName                 String                   @map("full_name") @db.VarChar(80)
+  phone                    String?                  @unique @db.VarChar(30)
+  emailVerifiedAt          DateTime?                @map("email_verified_at")
+  phoneVerifiedAt          DateTime?                @map("phone_verified_at")
+  commune                  String?                  @db.VarChar(80)
+  quartier                 String?                  @db.VarChar(80)
+  avatarKey                String?                  @map("avatar_key") @db.VarChar(500)
+  role                     UserRole                 @default(USER)
+  status                   UserStatus               @default(ACTIVE)
+  sellerVerificationStatus SellerVerificationStatus @default(NOT_REQUESTED) @map("seller_verification_status")
+  averageRating            Decimal                  @default(0) @map("average_rating") @db.Decimal(3, 2)
+  totalReviews             Int                      @default(0) @map("total_reviews")
+  trustScore               Int                      @default(0) @map("trust_score")
+  failedLoginAttempts      Int                      @default(0) @map("failed_login_attempts")
+  lockedUntil              DateTime?                @map("locked_until")
+  passwordChangedAt        DateTime?                @map("password_changed_at")
+  termsAcceptedAt          DateTime?                @map("terms_accepted_at")
+  termsVersion             String?                  @map("terms_version") @db.VarChar(40)
+  lastLoginAt              DateTime?                @map("last_login_at")
+  lastActiveAt             DateTime?                @map("last_active_at")
+  archivedAt               DateTime?                @map("archived_at")
+  createdAt                DateTime                 @default(now()) @map("created_at")
+  updatedAt                DateTime                 @updatedAt @map("updated_at")
+  sessions                 Session[]
+  usersBlocked             UserBlock[]              @relation("Blocker")
+  blockedBy                UserBlock[]              @relation("Blocked")
+  emailVerificationTokens  EmailVerificationToken[]
+  passwordResetTokens      PasswordResetToken[]
+  products                 Product[]                @relation("ProductSeller")
+  productImages            ProductImage[]           @relation("ProductImageSeller")
+  favorites                Favorite[]
+  productLikes             ProductLike[]
+  productViews             ProductView[]
+  buyerConversations       Conversation[]           @relation("ConversationBuyer")
+  sellerConversations      Conversation[]           @relation("ConversationSeller")
+  messages                 Message[]
+  offersCreated            Offer[]                  @relation("OfferCreator")
+  offersReceived           Offer[]                  @relation("OfferRecipient")
+  ordersBought             Order[]                  @relation("OrderBuyer")
+  ordersSold               Order[]                  @relation("OrderSeller")
+  orderStatusChanges       OrderStatusHistory[]     @relation("OrderStatusActor")
+  checkoutQuotes           CheckoutQuote[]
+  payments                 Payment[]
+  refundRequests           Refund[]                 @relation("RefundRequester")
+  payouts                  Payout[]                 @relation("PayoutSeller")
+  reviewsWritten           Review[]                 @relation("ReviewAuthor")
+  reviewsReceived          Review[]                 @relation("ReviewSubject")
+  reportsFiled             Report[]                 @relation("ReportReporter")
+  reportsAssigned          Report[]                 @relation("ReportAssignee")
+  moderationActions        ModerationAction[]       @relation("ModerationActor")
+  notifications            Notification[]
+  boosts                   Boost[]                  @relation("BoostSeller")
+  adminLogs                AdminLog[]               @relation("AdminLogActor")
+  settingsUpdated          AppSetting[]             @relation("SettingUpdater")
+  sellerVerification       SellerVerification?      @relation("SellerVerificationUser")
+  verificationsReviewed    SellerVerification[]     @relation("SellerVerificationReviewer")
+  supportTicketsRequested  SupportTicket[]          @relation("SupportTicketRequester")
+  supportTicketsAssigned   SupportTicket[]          @relation("SupportTicketAssignee")
+  supportMessages          SupportTicketMessage[]
+
+  @@index([status, createdAt])
+  @@index([role, status])
+  @@map("users")
+}
+
+model Session {
+  id               String    @id @default(uuid()) @db.Uuid
+  userId           String    @map("user_id") @db.Uuid
+  refreshTokenHash String    @map("refresh_token_hash") @db.VarChar(255)
+  tokenFamily      String    @map("token_family") @db.Uuid
+  deviceName       String?   @map("device_name") @db.VarChar(120)
+  ipAddress        String?   @map("ip_address") @db.VarChar(64)
+  userAgent        String?   @map("user_agent") @db.Text
+  lastUsedAt       DateTime  @default(now()) @map("last_used_at")
+  expiresAt        DateTime  @map("expires_at")
+  revokedAt        DateTime? @map("revoked_at")
+  revokeReason     String?   @map("revoke_reason") @db.VarChar(120)
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+  @@index([tokenFamily])
+  @@map("sessions")
+}
+
+model EmailVerificationToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("email_verification_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @map("user_id") @db.Uuid
+  tokenHash String    @unique @map("token_hash") @db.VarChar(128)
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model UserBlock {
+  id        String   @id @default(uuid()) @db.Uuid
+  blockerId String   @map("blocker_id") @db.Uuid
+  blockedId String   @map("blocked_id") @db.Uuid
+  reason    String?  @db.VarChar(500)
+  createdAt DateTime @default(now()) @map("created_at")
+  blocker   User     @relation("Blocker", fields: [blockerId], references: [id], onDelete: Cascade)
+  blocked   User     @relation("Blocked", fields: [blockedId], references: [id], onDelete: Cascade)
+
+  @@unique([blockerId, blockedId])
+  @@index([blockedId, createdAt])
+  @@map("user_blocks")
+}
+
+model Category {
+  id                      String     @id @default(uuid()) @db.Uuid
+  parentId                String?    @map("parent_id") @db.Uuid
+  name                    String     @db.VarChar(80)
+  slug                    String     @unique @db.VarChar(100)
+  description             String?    @db.VarChar(500)
+  iconKey                 String?    @map("icon_key") @db.VarChar(500)
+  imageKey                String?    @map("image_key") @db.VarChar(500)
+  isActive                Boolean    @default(true) @map("is_active")
+  isSensitive             Boolean    @default(false) @map("is_sensitive")
+  requiresAdminValidation Boolean    @default(false) @map("requires_admin_validation")
+  sortOrder               Int        @default(0) @map("sort_order")
+  archivedAt              DateTime?  @map("archived_at")
+  createdAt               DateTime   @default(now()) @map("created_at")
+  updatedAt               DateTime   @updatedAt @map("updated_at")
+  parent                  Category?  @relation("CategoryHierarchy", fields: [parentId], references: [id], onDelete: Restrict)
+  children                Category[] @relation("CategoryHierarchy")
+  products                Product[]  @relation("ProductCategory")
+  subcategoryItems        Product[]  @relation("ProductSubcategory")
+
+  @@unique([parentId, name])
+  @@index([parentId, isActive, sortOrder])
+  @@map("categories")
+}
+
+model Product {
+  id                 String           @id @default(uuid()) @db.Uuid
+  sellerId           String           @map("seller_id") @db.Uuid
+  categoryId         String           @map("category_id") @db.Uuid
+  subcategoryId      String           @map("subcategory_id") @db.Uuid
+  title              String           @db.VarChar(120)
+  slug               String           @unique @db.VarChar(160)
+  description        String           @db.Text
+  price              BigInt
+  currency           Currency         @default(GNF)
+  condition          ProductCondition
+  isNegotiable       Boolean          @map("is_negotiable")
+  commune            String           @db.VarChar(80)
+  quartier           String           @db.VarChar(80)
+  handoverModes      HandoverMode[]   @map("handover_modes")
+  status             ProductStatus    @default(DRAFT)
+  moderationStatus   ModerationStatus @default(PENDING) @map("moderation_status")
+  moderationReason   String?          @map("moderation_reason") @db.VarChar(1000)
+  viewsCount         Int              @default(0) @map("views_count")
+  likesCount         Int              @default(0) @map("likes_count")
+  favoritesCount     Int              @default(0) @map("favorites_count")
+  conversationsCount Int              @default(0) @map("conversations_count")
+  reportsCount       Int              @default(0) @map("reports_count")
+  publishedAt        DateTime?        @map("published_at")
+  reservedAt         DateTime?        @map("reserved_at")
+  soldAt             DateTime?        @map("sold_at")
+  archivedAt         DateTime?        @map("archived_at")
+  createdAt          DateTime         @default(now()) @map("created_at")
+  updatedAt          DateTime         @updatedAt @map("updated_at")
+  seller             User             @relation("ProductSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  category           Category         @relation("ProductCategory", fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategory        Category         @relation("ProductSubcategory", fields: [subcategoryId], references: [id], onDelete: Restrict)
+  images             ProductImage[]
+  favorites          Favorite[]
+  likes              ProductLike[]
+  views              ProductView[]
+  conversations      Conversation[]
+  offers             Offer[]
+  quotes             CheckoutQuote[]
+  orders             Order[]
+  reviews            Review[]
+  boosts             Boost[]
+
+  @@index([status, moderationStatus, publishedAt(sort: Desc)])
+  @@index([categoryId, subcategoryId, status])
+  @@index([commune, quartier, status])
+  @@index([sellerId, status, createdAt(sort: Desc)])
+  @@index([price, status])
+  @@map("products")
+}
+
+model ProductImage {
+  id               String           @id @default(uuid()) @db.Uuid
+  productId        String           @map("product_id") @db.Uuid
+  sellerId         String           @map("seller_id") @db.Uuid
+  storageKey       String           @unique @map("storage_key") @db.VarChar(500)
+  mimeType         String           @map("mime_type") @db.VarChar(80)
+  width            Int
+  height           Int
+  sizeBytes        Int              @map("size_bytes")
+  isMain           Boolean          @default(false) @map("is_main")
+  sortOrder        Int              @default(0) @map("sort_order")
+  moderationStatus ModerationStatus @default(PENDING) @map("moderation_status")
+  archivedAt       DateTime?        @map("archived_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  updatedAt        DateTime         @updatedAt @map("updated_at")
+  product          Product          @relation(fields: [productId], references: [id], onDelete: Cascade)
+  seller           User             @relation("ProductImageSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  @@unique([productId, sortOrder])
+  @@index([productId, isMain, archivedAt])
+  @@map("product_images")
+}
+
+model Favorite {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId, createdAt(sort: Desc)])
+  @@map("favorites")
+}
+
+model ProductLike {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  productId String   @map("product_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@map("product_likes")
+}
+
+model ProductView {
+  id         String   @id @default(uuid()) @db.Uuid
+  userId     String?  @map("user_id") @db.Uuid
+  productId  String   @map("product_id") @db.Uuid
+  visitorKey String   @map("visitor_key") @db.VarChar(128)
+  ipHash     String?  @map("ip_hash") @db.VarChar(128)
+  userAgent  String?  @map("user_agent") @db.Text
+  viewedAt   DateTime @default(now()) @map("viewed_at")
+  user       User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@index([productId, viewedAt])
+  @@index([visitorKey, productId, viewedAt])
+  @@map("product_views")
+}
+
+model Conversation {
+  id                String             @id @default(uuid()) @db.Uuid
+  productId         String             @map("product_id") @db.Uuid
+  buyerId           String             @map("buyer_id") @db.Uuid
+  sellerId          String             @map("seller_id") @db.Uuid
+  status            ConversationStatus @default(ACTIVE)
+  lastMessageText   String?            @map("last_message_text") @db.VarChar(220)
+  lastMessageAt     DateTime?          @map("last_message_at")
+  unreadCountBuyer  Int                @default(0) @map("unread_count_buyer")
+  unreadCountSeller Int                @default(0) @map("unread_count_seller")
+  buyerArchivedAt   DateTime?          @map("buyer_archived_at")
+  sellerArchivedAt  DateTime?          @map("seller_archived_at")
+  isReported        Boolean            @default(false) @map("is_reported")
+  reportCount       Int                @default(0) @map("report_count")
+  createdAt         DateTime           @default(now()) @map("created_at")
+  updatedAt         DateTime           @updatedAt @map("updated_at")
+  product           Product            @relation(fields: [productId], references: [id], onDelete: Restrict)
+  buyer             User               @relation("ConversationBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller            User               @relation("ConversationSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  messages          Message[]
+  offers            Offer[]
+  orders            Order[]
+
+  @@unique([productId, buyerId, sellerId])
+  @@index([buyerId, lastMessageAt(sort: Desc)])
+  @@index([sellerId, lastMessageAt(sort: Desc)])
+  @@index([isReported, status, updatedAt(sort: Desc)])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid()) @db.Uuid
+  clientId       String?      @map("client_id") @db.Uuid
+  conversationId String       @map("conversation_id") @db.Uuid
+  senderId       String       @map("sender_id") @db.Uuid
+  type           MessageType  @default(TEXT)
+  text           String?      @db.Text
+  mediaKey       String?      @map("media_key") @db.VarChar(500)
+  readAt         DateTime?    @map("read_at")
+  editedAt       DateTime?    @map("edited_at")
+  archivedAt     DateTime?    @map("archived_at")
+  isReported     Boolean      @default(false) @map("is_reported")
+  reportCount    Int          @default(0) @map("report_count")
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+  conversation   Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender         User         @relation(fields: [senderId], references: [id], onDelete: Restrict)
+
+  @@unique([conversationId, clientId])
+  @@index([conversationId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([senderId, createdAt(sort: Desc)])
+  @@map("messages")
+}
+
+model Offer {
+  id             String          @id @default(uuid()) @db.Uuid
+  productId      String          @map("product_id") @db.Uuid
+  conversationId String          @map("conversation_id") @db.Uuid
+  creatorId      String          @map("creator_id") @db.Uuid
+  recipientId    String          @map("recipient_id") @db.Uuid
+  parentOfferId  String?         @map("parent_offer_id") @db.Uuid
+  amount         BigInt
+  currency       Currency        @default(GNF)
+  handoverMode   HandoverMode    @map("handover_mode")
+  status         OfferStatus     @default(PENDING)
+  message        String?         @db.VarChar(500)
+  expiresAt      DateTime        @map("expires_at")
+  respondedAt    DateTime?       @map("responded_at")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  updatedAt      DateTime        @updatedAt @map("updated_at")
+  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
+  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  creator        User            @relation("OfferCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  recipient      User            @relation("OfferRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  parentOffer    Offer?          @relation("OfferCounterChain", fields: [parentOfferId], references: [id], onDelete: Restrict)
+  counterOffers  Offer[]         @relation("OfferCounterChain")
+  acceptedOrder  Order?          @relation("AcceptedOffer")
+  quotes         CheckoutQuote[]
+
+  @@index([conversationId, createdAt(sort: Desc)])
+  @@index([recipientId, status, expiresAt])
+  @@index([productId, status])
+  // Migration 20260805_000003 enforces one PENDING offer per conversation
+  // with a PostgreSQL partial unique index that Prisma cannot express here.
+  @@map("offers")
+}
+
+model CheckoutQuote {
+  id                 String       @id @default(uuid()) @db.Uuid
+  buyerId            String       @map("buyer_id") @db.Uuid
+  productId          String       @map("product_id") @db.Uuid
+  offerId            String?      @map("offer_id") @db.Uuid
+  itemAmount         BigInt       @map("item_amount")
+  buyerProtectionFee BigInt       @map("buyer_protection_fee")
+  deliveryFee        BigInt       @map("delivery_fee")
+  discountAmount     BigInt       @default(0) @map("discount_amount")
+  totalAmount        BigInt       @map("total_amount")
+  sellerNetAmount    BigInt       @map("seller_net_amount")
+  currency           Currency     @default(GNF)
+  handoverMode       HandoverMode @map("handover_mode")
+  handoverDetails    Json?        @map("handover_details")
+  feePolicyVersion   String       @map("fee_policy_version") @db.VarChar(40)
+  termsVersion       String       @map("terms_version") @db.VarChar(40)
+  expiresAt          DateTime     @map("expires_at")
+  consumedAt         DateTime?    @map("consumed_at")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  buyer              User         @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  product            Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  offer              Offer?       @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  order              Order?
+
+  @@index([buyerId, expiresAt])
+  @@index([productId, expiresAt])
+  @@map("checkout_quotes")
+}
+
+model Order {
+  id                 String               @id @default(uuid()) @db.Uuid
+  reference          String               @unique @db.VarChar(40)
+  idempotencyKey     String?              @unique @map("idempotency_key") @db.VarChar(120)
+  productId          String               @map("product_id") @db.Uuid
+  buyerId            String               @map("buyer_id") @db.Uuid
+  sellerId           String               @map("seller_id") @db.Uuid
+  conversationId     String?              @map("conversation_id") @db.Uuid
+  acceptedOfferId    String?              @unique @map("accepted_offer_id") @db.Uuid
+  quoteId            String               @unique @map("quote_id") @db.Uuid
+  status             OrderStatus          @default(AWAITING_SELLER_CONFIRMATION)
+  handoverMode       HandoverMode         @map("handover_mode")
+  handoverDetails    Json?                @map("handover_details")
+  currency           Currency             @default(GNF)
+  itemAmount         BigInt               @map("item_amount")
+  buyerProtectionFee BigInt               @map("buyer_protection_fee")
+  deliveryFee        BigInt               @map("delivery_fee")
+  discountAmount     BigInt               @default(0) @map("discount_amount")
+  totalAmount        BigInt               @map("total_amount")
+  sellerNetAmount    BigInt               @map("seller_net_amount")
+  feePolicyVersion   String               @map("fee_policy_version") @db.VarChar(40)
+  termsVersion       String               @map("terms_version") @db.VarChar(40)
+  productSnapshot    Json                 @map("product_snapshot")
+  buyerSnapshot      Json                 @map("buyer_snapshot")
+  sellerSnapshot     Json                 @map("seller_snapshot")
+  version            Int                  @default(1)
+  sellerConfirmedAt  DateTime?            @map("seller_confirmed_at")
+  sellerConfirmationExpiresAt DateTime?   @map("seller_confirmation_expires_at")
+  paymentExpiresAt   DateTime?            @map("payment_expires_at")
+  paidAt             DateTime?            @map("paid_at")
+  preparedAt         DateTime?            @map("prepared_at")
+  receivedAt         DateTime?            @map("received_at")
+  completedAt        DateTime?            @map("completed_at")
+  cancelledAt        DateTime?            @map("cancelled_at")
+  cancelReason       String?              @map("cancel_reason") @db.VarChar(600)
+  disputedAt         DateTime?            @map("disputed_at")
+  disputeReason      String?              @map("dispute_reason") @db.VarChar(1000)
+  archivedAt         DateTime?            @map("archived_at")
+  createdAt          DateTime             @default(now()) @map("created_at")
+  updatedAt          DateTime             @updatedAt @map("updated_at")
+  product            Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  buyer              User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller             User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  conversation       Conversation?        @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  acceptedOffer      Offer?               @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id], onDelete: Restrict)
+  quote              CheckoutQuote        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  statusHistory      OrderStatusHistory[]
+  payments           Payment[]
+  refunds            Refund[]
+  payout             Payout?
+  delivery           Delivery?
+  reviews            Review[]
+
+  @@index([buyerId, createdAt(sort: Desc)])
+  @@index([sellerId, createdAt(sort: Desc)])
+  @@index([productId, status])
+  @@index([status, updatedAt])
+  @@map("orders")
+}
+
+model OrderStatusHistory {
+  id         String       @id @default(uuid()) @db.Uuid
+  orderId    String       @map("order_id") @db.Uuid
+  actorId    String?      @map("actor_id") @db.Uuid
+  actorType  OrderActor   @map("actor_type")
+  fromStatus OrderStatus? @map("from_status")
+  toStatus   OrderStatus  @map("to_status")
+  reason     String?      @db.VarChar(1000)
+  metadata   Json?
+  requestId  String?      @map("request_id") @db.VarChar(80)
+  createdAt  DateTime     @default(now()) @map("created_at")
+  order      Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  actor      User?        @relation("OrderStatusActor", fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt])
+  @@map("order_status_history")
+}
+
+model Payment {
+  id                    String          @id @default(uuid()) @db.Uuid
+  userId                String          @map("user_id") @db.Uuid
+  orderId               String?         @map("order_id") @db.Uuid
+  type                  PaymentType
+  provider              PaymentProvider
+  status                PaymentStatus   @default(CREATED)
+  amount                BigInt
+  currency              Currency        @default(GNF)
+  phone                 String?         @db.VarChar(30)
+  internalReference     String          @unique @map("internal_reference") @db.VarChar(80)
+  providerTransactionId String?         @unique @map("provider_transaction_id") @db.VarChar(160)
+  idempotencyKey        String          @unique @map("idempotency_key") @db.VarChar(120)
+  metadata              Json?
+  failureCode           String?         @map("failure_code") @db.VarChar(100)
+  failureReason         String?         @map("failure_reason") @db.VarChar(800)
+  paidAt                DateTime?       @map("paid_at")
+  failedAt              DateTime?       @map("failed_at")
+  archivedAt            DateTime?       @map("archived_at")
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  user                  User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  order                 Order?          @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  events                PaymentEvent[]
+  refunds               Refund[]
+  ledgerEntries         LedgerEntry[]
+  boost                 Boost?
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([orderId, status])
+  @@index([status, createdAt])
+  @@map("payments")
+}
+
+model PaymentEvent {
+  id              String          @id @default(uuid()) @db.Uuid
+  paymentId       String          @map("payment_id") @db.Uuid
+  provider        PaymentProvider
+  providerEventId String?         @unique @map("provider_event_id") @db.VarChar(160)
+  status          PaymentStatus
+  signatureValid  Boolean         @map("signature_valid")
+  payload         Json
+  receivedAt      DateTime        @default(now()) @map("received_at")
+  processedAt     DateTime?       @map("processed_at")
+  processingError String?         @map("processing_error") @db.Text
+  payment         Payment         @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+
+  @@index([paymentId, receivedAt])
+  @@map("payment_events")
+}
+
+model Refund {
+  id                    String        @id @default(uuid()) @db.Uuid
+  paymentId             String        @map("payment_id") @db.Uuid
+  orderId               String?       @map("order_id") @db.Uuid
+  requestedById         String        @map("requested_by_id") @db.Uuid
+  status                RefundStatus  @default(REQUESTED)
+  amount                BigInt
+  currency              Currency      @default(GNF)
+  reason                String        @db.VarChar(1000)
+  internalReference     String        @unique @map("internal_reference") @db.VarChar(80)
+  providerTransactionId String?       @unique @map("provider_transaction_id") @db.VarChar(160)
+  providerEventId       String?       @unique @map("provider_event_id") @db.VarChar(160)
+  failureReason         String?       @map("failure_reason") @db.VarChar(800)
+  processedAt           DateTime?     @map("processed_at")
+  createdAt             DateTime      @default(now()) @map("created_at")
+  updatedAt             DateTime      @updatedAt @map("updated_at")
+  payment               Payment       @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  order                 Order?        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  requestedBy           User          @relation("RefundRequester", fields: [requestedById], references: [id], onDelete: Restrict)
+  ledgerEntries         LedgerEntry[]
+
+  @@index([orderId, status])
+  @@map("refunds")
+}
+
+model Payout {
+  id                    String          @id @default(uuid()) @db.Uuid
+  orderId               String          @unique @map("order_id") @db.Uuid
+  sellerId              String          @map("seller_id") @db.Uuid
+  status                PayoutStatus    @default(BLOCKED)
+  provider              PaymentProvider @default(OTHER)
+  amount                BigInt
+  currency              Currency        @default(GNF)
+  internalReference     String          @unique @map("internal_reference") @db.VarChar(80)
+  providerEventId       String?         @unique @map("provider_event_id") @db.VarChar(160)
+  providerTransactionId String?         @unique @map("provider_transaction_id") @db.VarChar(160)
+  availableAt           DateTime?       @map("available_at")
+  processedAt           DateTime?       @map("processed_at")
+  failureReason         String?         @map("failure_reason") @db.VarChar(800)
+  createdAt             DateTime        @default(now()) @map("created_at")
+  updatedAt             DateTime        @updatedAt @map("updated_at")
+  order                 Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  seller                User            @relation("PayoutSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  ledgerEntries         LedgerEntry[]
+
+  @@index([sellerId, status, createdAt])
+  @@index([status, availableAt])
+  @@map("payouts")
+}
+
+model LedgerEntry {
+  id          String          @id @default(uuid()) @db.Uuid
+  paymentId   String?         @map("payment_id") @db.Uuid
+  refundId    String?         @map("refund_id") @db.Uuid
+  payoutId    String?         @map("payout_id") @db.Uuid
+  type        LedgerEntryType
+  direction   LedgerDirection
+  amount      BigInt
+  currency    Currency        @default(GNF)
+  accountCode String          @map("account_code") @db.VarChar(80)
+  reference   String          @db.VarChar(120)
+  metadata    Json?
+  createdAt   DateTime        @default(now()) @map("created_at")
+  payment     Payment?        @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  refund      Refund?         @relation(fields: [refundId], references: [id], onDelete: Restrict)
+  payout      Payout?         @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+
+  @@index([reference, createdAt])
+  @@index([accountCode, createdAt])
+  @@map("ledger_entries")
+}
+
+model Delivery {
+  id                String                  @id @default(uuid()) @db.Uuid
+  orderId           String                  @unique @map("order_id") @db.Uuid
+  mode              HandoverMode
+  status            DeliveryStatus          @default(PENDING)
+  addressSnapshot   Json?                   @map("address_snapshot")
+  pickupLocation    String?                 @map("pickup_location") @db.VarChar(500)
+  provider          String?                 @db.VarChar(120)
+  trackingReference String?                 @unique @map("tracking_reference") @db.VarChar(160)
+  readyAt           DateTime?               @map("ready_at")
+  shippedAt         DateTime?               @map("shipped_at")
+  deliveredAt       DateTime?               @map("delivered_at")
+  failureReason     String?                 @map("failure_reason") @db.VarChar(800)
+  createdAt         DateTime                @default(now()) @map("created_at")
+  updatedAt         DateTime                @updatedAt @map("updated_at")
+  order             Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  history           DeliveryStatusHistory[]
+
+  @@index([status, updatedAt])
+  @@map("deliveries")
+}
+
+model DeliveryStatusHistory {
+  id         String          @id @default(uuid()) @db.Uuid
+  deliveryId String          @map("delivery_id") @db.Uuid
+  fromStatus DeliveryStatus? @map("from_status")
+  toStatus   DeliveryStatus  @map("to_status")
+  reason     String?         @db.VarChar(800)
+  metadata   Json?
+  createdAt  DateTime        @default(now()) @map("created_at")
+  delivery   Delivery        @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+
+  @@index([deliveryId, createdAt])
+  @@map("delivery_status_history")
+}
+
+model Review {
+  id                    String       @id @default(uuid()) @db.Uuid
+  orderId               String       @map("order_id") @db.Uuid
+  productId             String       @map("product_id") @db.Uuid
+  authorId              String       @map("author_id") @db.Uuid
+  subjectId             String       @map("subject_id") @db.Uuid
+  rating                Int
+  communicationRating   Int?         @map("communication_rating")
+  productAccuracyRating Int?         @map("product_accuracy_rating")
+  behaviorRating        Int?         @map("behavior_rating")
+  comment               String       @db.VarChar(1000)
+  reply                 String?      @db.VarChar(600)
+  repliedAt             DateTime?    @map("replied_at")
+  status                ReviewStatus @default(PUBLISHED)
+  isReported            Boolean      @default(false) @map("is_reported")
+  reportCount           Int          @default(0) @map("report_count")
+  hiddenReason          String?      @map("hidden_reason") @db.VarChar(800)
+  createdAt             DateTime     @default(now()) @map("created_at")
+  updatedAt             DateTime     @updatedAt @map("updated_at")
+  order                 Order        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product               Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
+  author                User         @relation("ReviewAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+  subject               User         @relation("ReviewSubject", fields: [subjectId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, authorId])
+  @@index([subjectId, status, createdAt(sort: Desc)])
+  @@map("reviews")
+}
+
+model Report {
+  id            String           @id @default(uuid()) @db.Uuid
+  reporterId    String           @map("reporter_id") @db.Uuid
+  assignedToId  String?          @map("assigned_to_id") @db.Uuid
+  targetType    ReportTargetType @map("target_type")
+  targetId      String           @map("target_id") @db.Uuid
+  reason        ReportReason
+  description   String?          @db.VarChar(1200)
+  status        ReportStatus     @default(OPEN)
+  priority      ReportPriority   @default(MEDIUM)
+  adminDecision String?          @map("admin_decision") @db.VarChar(1000)
+  adminNote     String?          @map("admin_note") @db.VarChar(1000)
+  resolvedAt    DateTime?        @map("resolved_at")
+  createdAt     DateTime         @default(now()) @map("created_at")
+  updatedAt     DateTime         @updatedAt @map("updated_at")
+  reporter      User             @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  assignedTo    User?            @relation("ReportAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@unique([reporterId, targetType, targetId])
+  @@index([status, priority, createdAt])
+  @@index([targetType, targetId])
+  @@map("reports")
+}
+
+model ModerationAction {
+  id           String               @id @default(uuid()) @db.Uuid
+  actorId      String               @map("actor_id") @db.Uuid
+  targetType   ReportTargetType     @map("target_type")
+  targetId     String               @map("target_id") @db.Uuid
+  action       ModerationActionType
+  reason       String               @db.VarChar(600)
+  note         String?              @db.VarChar(1200)
+  durationDays Int?                 @map("duration_days")
+  before       Json?
+  after        Json?
+  createdAt    DateTime             @default(now()) @map("created_at")
+  actor        User                 @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([targetType, targetId, createdAt])
+  @@index([actorId, createdAt])
+  @@map("moderation_actions")
+}
+
+model SellerVerification {
+  id              String                   @id @default(uuid()) @db.Uuid
+  userId          String                   @unique @map("user_id") @db.Uuid
+  reviewedById    String?                  @map("reviewed_by_id") @db.Uuid
+  status          SellerVerificationStatus @default(PENDING)
+  documentKeys    String[]                 @map("document_keys")
+  note            String?                  @db.VarChar(1000)
+  rejectionReason String?                  @map("rejection_reason") @db.VarChar(1000)
+  requestedAt     DateTime                 @default(now()) @map("requested_at")
+  reviewedAt      DateTime?                @map("reviewed_at")
+  createdAt       DateTime                 @default(now()) @map("created_at")
+  updatedAt       DateTime                 @updatedAt @map("updated_at")
+  user            User                     @relation("SellerVerificationUser", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy      User?                    @relation("SellerVerificationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([status, requestedAt])
+  @@map("seller_verifications")
+}
+
+model Notification {
+  id         String           @id @default(uuid()) @db.Uuid
+  userId     String           @map("user_id") @db.Uuid
+  type       NotificationType
+  title      String           @db.VarChar(160)
+  body       String           @db.VarChar(500)
+  data       Json?
+  readAt     DateTime?        @map("read_at")
+  archivedAt DateTime?        @map("archived_at")
+  createdAt  DateTime         @default(now()) @map("created_at")
+  user       User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@map("notifications")
+}
+
+model BoostPlan {
+  id            String         @id @default(uuid()) @db.Uuid
+  name          String         @db.VarChar(80)
+  slug          String         @unique @db.VarChar(100)
+  durationHours Int            @map("duration_hours")
+  price         BigInt
+  currency      Currency       @default(GNF)
+  placement     BoostPlacement @default(HOME_FEED)
+  isActive      Boolean        @default(true) @map("is_active")
+  archivedAt    DateTime?      @map("archived_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  boosts        Boost[]
+
+  @@index([isActive, price])
+  @@map("boost_plans")
+}
+
+model Boost {
+  id           String      @id @default(uuid()) @db.Uuid
+  productId    String      @map("product_id") @db.Uuid
+  sellerId     String      @map("seller_id") @db.Uuid
+  boostPlanId  String      @map("boost_plan_id") @db.Uuid
+  paymentId    String?     @unique @map("payment_id") @db.Uuid
+  status       BoostStatus @default(PENDING_PAYMENT)
+  startsAt     DateTime?   @map("starts_at")
+  endsAt       DateTime?   @map("ends_at")
+  cancelReason String?     @map("cancel_reason") @db.VarChar(600)
+  archivedAt   DateTime?   @map("archived_at")
+  createdAt    DateTime    @default(now()) @map("created_at")
+  updatedAt    DateTime    @updatedAt @map("updated_at")
+  product      Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  seller       User        @relation("BoostSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  plan         BoostPlan   @relation(fields: [boostPlanId], references: [id], onDelete: Restrict)
+  payment      Payment?    @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([productId, status])
+  @@index([sellerId, createdAt(sort: Desc)])
+  @@index([status, endsAt])
+  @@map("boosts")
+}
+
+model AdminLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  actorId    String   @map("actor_id") @db.Uuid
+  action     String   @db.VarChar(120)
+  targetType String   @map("target_type") @db.VarChar(80)
+  targetId   String?  @map("target_id") @db.Uuid
+  before     Json?
+  after      Json?
+  note       String?  @db.VarChar(1200)
+  ipAddress  String?  @map("ip_address") @db.VarChar(64)
+  userAgent  String?  @map("user_agent") @db.Text
+  requestId  String?  @map("request_id") @db.VarChar(80)
+  createdAt  DateTime @default(now()) @map("created_at")
+  actor      User     @relation("AdminLogActor", fields: [actorId], references: [id], onDelete: Restrict)
+
+  @@index([actorId, createdAt(sort: Desc)])
+  @@index([targetType, targetId, createdAt])
+  @@map("admin_logs")
+}
+
+model AppSetting {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique @db.VarChar(100)
+  value       Json
+  valueType   SettingValueType @map("value_type")
+  description String?          @db.VarChar(500)
+  isPublic    Boolean          @default(false) @map("is_public")
+  updatedById String?          @map("updated_by_id") @db.Uuid
+  archivedAt  DateTime?        @map("archived_at")
+  createdAt   DateTime         @default(now()) @map("created_at")
+  updatedAt   DateTime         @updatedAt @map("updated_at")
+  updatedBy   User?            @relation("SettingUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@index([isPublic, archivedAt])
+  @@map("app_settings")
+}
+
+model SupportTicket {
+  id               String                @id @default(uuid()) @db.Uuid
+  reference        String                @unique @db.VarChar(40)
+  requesterId      String                @map("requester_id") @db.Uuid
+  assignedToId     String?               @map("assigned_to_id") @db.Uuid
+  topic            String                @db.VarChar(80)
+  subject          String                @db.VarChar(160)
+  relatedReference String?               @map("related_reference") @db.VarChar(120)
+  status           SupportTicketStatus   @default(OPEN)
+  priority         SupportTicketPriority @default(MEDIUM)
+  lastMessageAt    DateTime              @default(now()) @map("last_message_at")
+  resolvedAt       DateTime?             @map("resolved_at")
+  closedAt         DateTime?             @map("closed_at")
+  createdAt        DateTime              @default(now()) @map("created_at")
+  updatedAt        DateTime              @updatedAt @map("updated_at")
+  requester        User                  @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignedTo       User?                 @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  messages         SupportTicketMessage[]
+
+  @@index([requesterId, updatedAt(sort: Desc)])
+  @@index([status, priority, updatedAt(sort: Desc)])
+  @@index([assignedToId, status, updatedAt(sort: Desc)])
+  @@map("support_tickets")
+}
+
+model SupportTicketMessage {
+  id        String        @id @default(uuid()) @db.Uuid
+  ticketId  String        @map("ticket_id") @db.Uuid
+  authorId  String        @map("author_id") @db.Uuid
+  message   String        @db.VarChar(3000)
+  createdAt DateTime      @default(now()) @map("created_at")
+  ticket    SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  author    User          @relation(fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt, id])
+  @@map("support_ticket_messages")
+}
