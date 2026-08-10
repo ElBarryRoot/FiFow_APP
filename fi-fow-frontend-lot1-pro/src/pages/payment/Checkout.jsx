@@ -11,6 +11,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { ErrorBlock, LoadingBlock } from '../../components/commerce/AsyncState.jsx'
 import CheckoutProductSummary from '../../components/payment/CheckoutProductSummary.jsx'
 import MobileMoneyPhoneInput from '../../components/payment/MobileMoneyPhoneInput.jsx'
+import PaymentJourney from '../../components/payment/PaymentJourney.jsx'
 import PaymentSecurityCard from '../../components/payment/PaymentSecurityCard.jsx'
 import TransactionHeader from '../../components/payment/TransactionHeader.jsx'
 import Button from '../../components/ui/Button.jsx'
@@ -45,6 +46,7 @@ export default function Checkout() {
 
   function submitPayment(event) {
     event.preventDefault()
+    if (!order || paymentMutation.isPending) return
     const normalizedPhone = normalizePhone(phone)
     if (!/^\+?[0-9]{8,20}$/.test(normalizedPhone)) {
       setFieldError('Saisissez un numéro valide, par exemple +224 620 12 34 56.')
@@ -74,6 +76,8 @@ export default function Checkout() {
                 <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">Finaliser le paiement</h1>
                 <p className="mt-2 text-sm font-semibold leading-6 text-fifow-secondary">Le paiement n’est confirmé qu’après validation du fournisseur.</p>
               </div>
+
+              {order.status === 'AWAITING_PAYMENT' || pendingPayment ? <PaymentJourney current="payment" /> : null}
 
               {order.status === 'AWAITING_PAYMENT' && !pendingPayment ? (
                 <form onSubmit={submitPayment} className="space-y-4">
@@ -106,7 +110,12 @@ export default function Checkout() {
                 </Card>
               ) : null}
             </div>
-            <aside className="space-y-4 lg:sticky lg:top-24"><CheckoutProductSummary order={order} /><PaymentSecurityCard /></aside>
+            <aside className="space-y-4 lg:sticky lg:top-24">
+              <CheckoutProductSummary order={order} />
+              <PaymentSecurityCard title="Avant de payer">
+                Le montant est fixe par la commande. Ne partagez jamais un code secret dans une conversation.
+              </PaymentSecurityCard>
+            </aside>
           </div>
         ) : null}
       </section>

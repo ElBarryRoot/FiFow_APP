@@ -14,7 +14,7 @@ export default function PaymentStatusHero({ status = 'processing', title, descri
         </div>
         {!success ? <Clock className="absolute -right-2 bottom-8 h-12 w-12 rounded-full bg-amber-400 p-3 text-white shadow-card" /> : null}
       </div>
-      <h2 className="mx-auto mt-8 max-w-2xl text-3xl font-black tracking-[-0.05em] text-fifow-dark sm:text-5xl">{title}</h2>
+      <h2 className="mx-auto mt-8 max-w-2xl text-2xl font-black text-fifow-dark sm:text-[1.75rem]">{title}</h2>
       <p className="mx-auto mt-4 max-w-2xl text-base font-semibold leading-7 text-fifow-secondary sm:text-lg">{description}</p>
     </section>
   )

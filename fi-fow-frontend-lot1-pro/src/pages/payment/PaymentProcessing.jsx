@@ -6,6 +6,7 @@ import { errorMessage } from '../../api/errors.js'
 import { paymentsApi } from '../../api/payments.js'
 import { queryKeys } from '../../api/queryKeys.js'
 import { ErrorBlock, LoadingBlock } from '../../components/commerce/AsyncState.jsx'
+import PaymentJourney from '../../components/payment/PaymentJourney.jsx'
 import PaymentReferenceCard from '../../components/payment/PaymentReferenceCard.jsx'
 import PaymentSecurityCard from '../../components/payment/PaymentSecurityCard.jsx'
 import TransactionHeader from '../../components/payment/TransactionHeader.jsx'
@@ -84,6 +85,7 @@ export default function PaymentProcessing() {
               <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">{statusDescription(payment.status, timedOut)}</p>
             </Card>
 
+            <PaymentJourney current={payment.status === 'SUCCEEDED' ? 'handover' : 'payment'} />
             <PaymentReferenceCard reference={payment.internalReference} amount={payment.amount} />
             {payment.failureReason ? <Card className="border-red-100 bg-red-50 p-4 text-sm font-bold text-fifow-red" role="alert">{payment.failureReason}</Card> : null}
             <PaymentSecurityCard>Fi Fow se fie uniquement à la confirmation signée du fournisseur de paiement.</PaymentSecurityCard>

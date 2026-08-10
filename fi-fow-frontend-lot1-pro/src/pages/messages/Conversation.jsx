@@ -16,6 +16,7 @@ import { cn } from '../../lib/utils.js'
 import { formatGNF } from '../../lib/formatters.js'
 import { useToast } from '../../lib/toast.jsx'
 import ConfirmDialog from '../../components/commerce/ConfirmDialog.jsx'
+import { useFormattedGNFInput } from '../../components/product-publish/moneyInput.js'
 
 const handoverLabels = { HAND_TO_HAND: 'Remise en main propre', HOME_DELIVERY: 'Livraison à domicile', PICKUP_POINT: 'Point de retrait' }
 const offerLabels = { PENDING: 'En attente', ACCEPTED: 'Acceptée', REJECTED: 'Refusée', COUNTERED: 'Contre-proposée', EXPIRED: 'Expirée', CANCELLED: 'Annulée' }
@@ -254,8 +255,14 @@ export default function Conversation() {
   function submitOffer(event) {
     event.preventDefault()
     if (!/^[1-9][0-9]{2,14}$/.test(offerAmount)) return showToast('Saisissez un montant valide.', { type: 'error' })
+    if (!allowedHandoverModes.includes(handoverMode)) return showToast('Choisissez un mode de remise disponible.', { type: 'error' })
     const input = { amount: offerAmount, handoverMode }
     offerMutation.mutate(counteringOffer ? { type: 'respond', offerId: counteringOffer.id, input: { action: 'COUNTER', ...input } } : { type: 'create', input })
+  }
+
+  function openNewOffer() {
+    setCounteringOffer(null)
+    setOfferOpen(true)
   }
 
   async function loadPreviousMessages() {
@@ -288,7 +295,8 @@ export default function Conversation() {
       <div className="grid items-start gap-5 lg:grid-cols-[330px_minmax(0,1fr)] xl:grid-cols-[310px_minmax(0,1fr)_290px]">
         <aside className="hidden max-h-[720px] space-y-3 overflow-y-auto lg:block">{conversationsQuery.data?.items.map((item) => <ConversationListItem key={item.id} conversation={item} active={item.id === id} compact />)}</aside>
         <Card className="overflow-hidden">
-          <div className="flex items-center gap-3 border-b border-fifow-border bg-white p-4"><img src={conversation.avatar} alt="" className="h-12 w-12 rounded-full object-cover" /><div className="min-w-0 flex-1"><h2 className="font-black text-fifow-dark">{conversation.seller}</h2><p className="truncate text-sm font-semibold text-fifow-secondary">{counterpartTyping ? 'Écrit…' : conversation.location || 'Échange sécurisé Fi Fow'}</p></div>{canOffer ? <Button type="button" variant="secondary" size="sm" icon={HandCoins} onClick={() => { setCounteringOffer(null); setOfferOpen(true) }} className="hidden md:inline-flex">Proposer</Button> : null}<button type="button" onClick={() => setArchiveOpen(true)} aria-label="Archiver" className="grid h-10 w-10 place-items-center rounded-lg text-fifow-secondary hover:bg-slate-100"><Archive className="h-5 w-5" /></button><Link to={`/products/${conversation.productSlug}`}><img src={conversation.image} alt={conversation.productTitle} className="h-12 w-12 rounded-lg object-cover" /></Link></div>
+          <div className="flex items-center gap-3 border-b border-fifow-border bg-white p-4"><img src={conversation.avatar} alt="" className="h-12 w-12 rounded-full object-cover" /><div className="min-w-0 flex-1"><h2 className="font-black text-fifow-dark">{conversation.seller}</h2><p className="truncate text-sm font-semibold text-fifow-secondary">{counterpartTyping ? 'Écrit…' : conversation.location || 'Échange sécurisé Fi Fow'}</p></div>{canOffer ? <Button type="button" variant="secondary" size="sm" icon={HandCoins} onClick={openNewOffer} aria-haspopup="dialog" className="hidden md:inline-flex">Proposer</Button> : null}<button type="button" onClick={() => setArchiveOpen(true)} aria-label="Archiver" className="grid h-10 w-10 place-items-center rounded-lg text-fifow-secondary hover:bg-slate-100"><Archive className="h-5 w-5" /></button><Link to={`/products/${conversation.productSlug}`}><img src={conversation.image} alt={conversation.productTitle} className="h-12 w-12 rounded-lg object-cover" /></Link></div>
+          {canOffer ? <div className="border-b border-fifow-border bg-white p-3 md:hidden"><Button type="button" variant="secondary" icon={HandCoins} onClick={openNewOffer} aria-haspopup="dialog" className="w-full">Proposer un prix</Button></div> : null}
           <div ref={messagesViewportRef} className="max-h-[560px] min-h-[440px] space-y-4 overflow-y-auto bg-fifow-bg p-4 sm:p-6">
             {messagesHistoryQuery.hasNextPage ? <div className="flex justify-center"><Button type="button" size="sm" variant="ghost" loading={messagesHistoryQuery.isFetchingNextPage} onClick={loadPreviousMessages}>Charger les messages précédents</Button></div> : null}
             {!messages.length && !offers.length ? <p className="py-16 text-center text-sm font-semibold text-fifow-secondary">Démarrez la conversation avec une question précise sur l’annonce.</p> : null}
@@ -300,7 +308,7 @@ export default function Conversation() {
           </div>
           <form onSubmit={sendMessage} className="flex items-end gap-2 border-t border-fifow-border bg-white p-3 sm:p-4"><label className="grid h-12 w-12 shrink-0 cursor-pointer place-items-center rounded-lg bg-fifow-lavender text-fifow-primary"><input type="file" accept="image/jpeg,image/png,image/webp,image/heic,image/heif" onChange={sendImage} className="sr-only" /><ImagePlus className="h-5 w-5" /></label><textarea value={draft} onChange={(event) => updateDraft(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter' && !event.shiftKey) { event.preventDefault(); event.currentTarget.form?.requestSubmit() } }} rows={1} maxLength={2000} placeholder="Écrire un message…" aria-label="Message" className="min-h-12 max-h-32 min-w-0 flex-1 resize-none rounded-lg border border-fifow-border px-4 py-3 text-sm font-semibold outline-none focus:border-fifow-primary focus:ring-4 focus:ring-violet-100" /><Button type="submit" icon={Send} loading={textMutation.isPending} aria-label="Envoyer"><span className="hidden sm:inline">Envoyer</span></Button></form>
         </Card>
-        <aside className="hidden space-y-4 xl:block xl:sticky xl:top-[92px]"><Card className="p-4"><Link to={`/products/${conversation.productSlug}`} className="block"><img src={conversation.image} alt={conversation.productTitle} className="aspect-[4/3] w-full rounded-lg object-cover" /><h2 className="mt-4 text-lg font-black text-fifow-dark">{conversation.productTitle}</h2><p className="mt-1 text-xl font-black text-fifow-primary">{formatGNF(conversation.price)}</p><p className="mt-2 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {conversation.location || 'Guinée'}</p></Link>{canOffer ? <Button type="button" variant="secondary" icon={HandCoins} onClick={() => { setCounteringOffer(null); setOfferOpen(true) }} className="mt-4 w-full">Proposer un prix</Button> : null}</Card><HumanTrustPanel title="Avant de conclure" items={['Demandez l’état réel du produit', 'Confirmez le lieu exact', 'Gardez une trace de l’échange']} /><div className="flex gap-2 rounded-lg border border-emerald-100 bg-fifow-mint p-4"><ShieldCheck className="h-5 w-5 shrink-0 text-fifow-green" /><p className="text-sm font-semibold leading-6 text-fifow-secondary">Ne partagez jamais votre mot de passe ou un code de validation.</p></div></aside>
+        <aside className="hidden space-y-4 xl:block xl:sticky xl:top-[92px]"><Card className="p-4"><Link to={`/products/${conversation.productSlug}`} className="block"><img src={conversation.image} alt={conversation.productTitle} className="aspect-[4/3] w-full rounded-lg object-cover" /><h2 className="mt-4 text-lg font-black text-fifow-dark">{conversation.productTitle}</h2><p className="mt-1 text-xl font-black text-fifow-primary">{formatGNF(conversation.price)}</p><p className="mt-2 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {conversation.location || 'Guinée'}</p></Link>{canOffer ? <Button type="button" variant="secondary" icon={HandCoins} onClick={openNewOffer} aria-haspopup="dialog" className="mt-4 w-full">Proposer un prix</Button> : null}</Card><HumanTrustPanel title="Avant de conclure" items={['Demandez l’état réel du produit', 'Confirmez le lieu exact', 'Gardez une trace de l’échange']} /><div className="flex gap-2 rounded-lg border border-emerald-100 bg-fifow-mint p-4"><ShieldCheck className="h-5 w-5 shrink-0 text-fifow-green" /><p className="text-sm font-semibold leading-6 text-fifow-secondary">Ne partagez jamais votre mot de passe ou un code de validation.</p></div></aside>
       </div>
       {offerOpen ? <OfferDialog amount={offerAmount} setAmount={setOfferAmount} handoverMode={handoverMode} setHandoverMode={setHandoverMode} allowedModes={allowedHandoverModes} price={conversation.price} counter={Boolean(counteringOffer)} loading={offerMutation.isPending} onClose={() => { setOfferOpen(false); setCounteringOffer(null) }} onSubmit={submitOffer} /> : null}
       <ConfirmDialog open={archiveOpen} title="Archiver cette conversation ?" description="Elle disparaîtra de votre liste. Un nouveau message la rendra de nouveau visible." confirmLabel="Archiver" loading={archiveMutation.isPending} onClose={() => setArchiveOpen(false)} onConfirm={() => archiveMutation.mutate()} />
@@ -335,5 +343,87 @@ function OfferCard({ offer, conversation, currentUserId, onRespond, loading }) {
 }
 
 function OfferDialog({ amount, setAmount, handoverMode, setHandoverMode, allowedModes, price, counter, loading, onClose, onSubmit }) {
-  return <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/45 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="offer-title"><form onSubmit={onSubmit} className="w-full max-w-md rounded-lg bg-white p-5 shadow-2xl sm:p-6"><div className="flex items-start justify-between gap-4"><div><p className="text-xs font-black uppercase text-fifow-primary">Négociation</p><h2 id="offer-title" className="mt-1 text-2xl font-black text-fifow-dark">{counter ? 'Faire une contre-proposition' : 'Proposer un prix'}</h2><p className="mt-1 text-sm font-semibold text-fifow-secondary">Prix affiché : {formatGNF(price)}</p></div><button type="button" onClick={onClose} aria-label="Fermer" className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-fifow-secondary"><X className="h-5 w-5" /></button></div><label className="mt-6 block"><span className="text-sm font-extrabold text-fifow-dark">Montant proposé</span><div className="mt-2 flex h-14 items-center rounded-lg border border-fifow-border px-4 focus-within:border-fifow-primary focus-within:ring-4 focus-within:ring-violet-100"><input value={amount} onChange={(event) => setAmount(event.target.value.replace(/\D/g, '').slice(0, 15))} inputMode="numeric" className="min-w-0 flex-1 bg-transparent text-xl font-black text-fifow-dark outline-none" autoFocus /><span className="font-extrabold text-fifow-secondary">GNF</span></div></label><fieldset className="mt-5"><legend className="text-sm font-extrabold text-fifow-dark">Mode de remise</legend><div className="mt-2 grid gap-2">{allowedModes.map((mode) => <label key={mode} className={cn('flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm font-extrabold', handoverMode === mode ? 'border-fifow-primary bg-fifow-lavender text-fifow-primary' : 'border-fifow-border text-fifow-secondary')}><input type="radio" checked={handoverMode === mode} onChange={() => setHandoverMode(mode)} className="accent-fifow-primary" />{handoverLabels[mode]}</label>)}</div></fieldset><div className="mt-6 grid grid-cols-2 gap-3"><Button type="button" variant="secondary" onClick={onClose}>Annuler</Button><Button type="submit" icon={Send} loading={loading}>Envoyer</Button></div></form></div>
+  const amountInput = useFormattedGNFInput({ value: amount, onValueChange: setAmount })
+  const dialogRef = useRef(null)
+  const onCloseRef = useRef(onClose)
+  const loadingRef = useRef(loading)
+  const hasValidAmount = /^[1-9][0-9]{2,14}$/.test(amount)
+  const hasValidHandoverMode = allowedModes.includes(handoverMode)
+  const canSubmit = hasValidAmount && hasValidHandoverMode
+
+  useEffect(() => {
+    onCloseRef.current = onClose
+    loadingRef.current = loading
+  }, [loading, onClose])
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow
+    const previousFocus = document.activeElement
+    const onKeyDown = (event) => {
+      if (event.key === 'Escape' && !loadingRef.current) {
+        event.preventDefault()
+        onCloseRef.current()
+        return
+      }
+
+      if (event.key !== 'Tab') return
+      const focusableElements = [...(dialogRef.current?.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]') || [])]
+      if (!focusableElements.length) return
+
+      const firstElement = focusableElements[0]
+      const lastElement = focusableElements[focusableElements.length - 1]
+      if (event.shiftKey && document.activeElement === firstElement) {
+        event.preventDefault()
+        lastElement.focus()
+      } else if (!event.shiftKey && document.activeElement === lastElement) {
+        event.preventDefault()
+        firstElement.focus()
+      }
+    }
+
+    document.body.style.overflow = 'hidden'
+    window.addEventListener('keydown', onKeyDown)
+
+    return () => {
+      document.body.style.overflow = previousOverflow
+      window.removeEventListener('keydown', onKeyDown)
+      previousFocus?.focus?.()
+    }
+  }, [])
+
+  return (
+    <div className="fixed inset-0 z-[100] overflow-y-auto bg-slate-950/45 p-3 backdrop-blur-sm sm:grid sm:place-items-center sm:p-4" role="dialog" aria-modal="true" aria-labelledby="offer-title" aria-describedby="offer-description">
+      <form ref={dialogRef} onSubmit={onSubmit} className="mx-auto my-4 w-full max-w-md rounded-lg bg-white p-5 shadow-2xl sm:my-0 sm:p-6">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <p className="text-xs font-black uppercase text-fifow-primary">Négociation</p>
+            <h2 id="offer-title" className="mt-1 text-2xl font-black text-fifow-dark">{counter ? 'Faire une contre-proposition' : 'Proposer un prix'}</h2>
+            <p id="offer-description" className="mt-1 text-sm font-semibold text-fifow-secondary">Prix affiché : {formatGNF(price)}</p>
+          </div>
+          <button type="button" onClick={onClose} disabled={loading} aria-label="Fermer" className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-fifow-secondary transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"><X className="h-5 w-5" /></button>
+        </div>
+
+        <label className="mt-6 block" htmlFor="offer-amount">
+          <span className="text-sm font-extrabold text-fifow-dark">Montant proposé</span>
+          <div className="mt-2 flex h-14 items-center rounded-lg border border-fifow-border px-4 transition focus-within:border-fifow-primary focus-within:ring-4 focus-within:ring-violet-100">
+            <input id="offer-amount" ref={amountInput.inputRef} value={amountInput.displayValue} onChange={amountInput.onChange} inputMode="numeric" autoComplete="off" aria-invalid={Boolean(amount && !hasValidAmount)} aria-describedby="offer-amount-help" className="min-w-0 flex-1 bg-transparent text-xl font-black text-fifow-dark outline-none" autoFocus />
+            <span className="font-extrabold text-fifow-secondary">GNF</span>
+          </div>
+        </label>
+        <p id="offer-amount-help" aria-live="polite" className={cn('mt-2 text-sm font-semibold', hasValidAmount ? 'text-fifow-secondary' : 'text-fifow-muted')}>
+          {hasValidAmount ? `Vous proposez ${formatGNF(Number(amount))}.` : 'Saisissez au moins 100 GNF.'}
+        </p>
+
+        <fieldset className="mt-5" disabled={loading}>
+          <legend className="text-sm font-extrabold text-fifow-dark">Mode de remise</legend>
+          {allowedModes.length ? <div className="mt-2 grid gap-2">{allowedModes.map((mode) => <label key={mode} className={cn('flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-sm font-extrabold transition', handoverMode === mode ? 'border-fifow-primary bg-fifow-lavender text-fifow-primary' : 'border-fifow-border text-fifow-secondary')}><input type="radio" checked={handoverMode === mode} onChange={() => setHandoverMode(mode)} className="accent-fifow-primary" />{handoverLabels[mode]}</label>)}</div> : <p className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800">Le vendeur n’a pas indiqué de mode de remise pour cette annonce.</p>}
+        </fieldset>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <Button type="button" variant="secondary" onClick={onClose} disabled={loading}>Annuler</Button>
+          <Button type="submit" icon={Send} loading={loading} disabled={!canSubmit}>Envoyer</Button>
+        </div>
+      </form>
+    </div>
+  )
 }

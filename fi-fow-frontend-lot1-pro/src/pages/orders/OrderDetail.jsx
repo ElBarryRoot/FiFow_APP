@@ -9,6 +9,7 @@ import { useAuth } from '../../auth/AuthContext.jsx'
 import { ErrorBlock, LoadingBlock } from '../../components/commerce/AsyncState.jsx'
 import ReasonDialog from '../../components/commerce/ReasonDialog.jsx'
 import OrderActions from '../../components/orders/OrderActions.jsx'
+import OrderProgress from '../../components/orders/OrderProgress.jsx'
 import OrderTimeline from '../../components/orders/OrderTimeline.jsx'
 import Badge from '../../components/ui/Badge.jsx'
 import Card from '../../components/ui/Card.jsx'
@@ -80,6 +81,10 @@ export default function OrderDetail() {
           </Card>
 
           <Card className="p-5 sm:p-6">
+            <OrderProgress order={order} userId={auth.user.id} />
+          </Card>
+
+          <Card className="p-5 sm:p-6">
             <h2 className="text-lg font-black text-fifow-dark">Historique</h2>
             <div className="mt-5"><OrderTimeline history={order.statusHistory} /></div>
           </Card>
@@ -99,7 +104,7 @@ export default function OrderDetail() {
             <h2 className="flex items-center gap-2 text-lg font-black text-fifow-dark"><ReceiptText className="h-5 w-5 text-fifow-primary" /> Récapitulatif</h2>
             <dl className="mt-4 space-y-3 text-sm font-semibold text-fifow-secondary">
               <AmountItem label="Produit" value={order.itemAmount} />
-              <AmountItem label="Protection acheteur" value={order.buyerProtectionFee} />
+              <AmountItem label="Protection de la transaction" value={order.buyerProtectionFee} />
               <AmountItem label="Livraison" value={order.deliveryFee} />
               {Number(order.discountAmount || 0) ? <AmountItem label="Réduction" value={-order.discountAmount} /> : null}
               <div className="flex justify-between gap-3 border-t border-fifow-border pt-3 text-base"><dt className="font-black text-fifow-dark">Total</dt><dd className="font-black text-fifow-primary">{formatGNF(order.totalAmount)}</dd></div>

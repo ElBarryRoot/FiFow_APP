@@ -6,6 +6,7 @@ import { errorMessage } from '../../api/errors.js'
 import { paymentsApi } from '../../api/payments.js'
 import { queryKeys } from '../../api/queryKeys.js'
 import { ErrorBlock, LoadingBlock } from '../../components/commerce/AsyncState.jsx'
+import PaymentJourney from '../../components/payment/PaymentJourney.jsx'
 import PaymentReceiptCard from '../../components/payment/PaymentReceiptCard.jsx'
 import PaymentSecurityCard from '../../components/payment/PaymentSecurityCard.jsx'
 import TransactionHeader from '../../components/payment/TransactionHeader.jsx'
@@ -50,8 +51,10 @@ export default function PaymentSuccess() {
               <h1 className="mt-5 text-2xl font-black text-fifow-dark sm:text-3xl">Paiement confirmé</h1>
               <p className="mx-auto mt-2 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">La confirmation sécurisée a été enregistrée. La transaction apparaît maintenant dans votre suivi.</p>
             </div>
+            {orderId ? <PaymentJourney current="handover" /> : null}
             <PaymentReceiptCard receipt={toReceipt(payment)} />
             <PaymentSecurityCard title="Transaction enregistrée">Conservez la référence de paiement dans vos échanges avec le support.</PaymentSecurityCard>
+            {orderId ? <p className="text-center text-sm font-semibold leading-6 text-fifow-secondary">Prochaine étape : suivez la préparation et la remise depuis votre commande.</p> : null}
             <div className="mx-auto grid max-w-2xl gap-3 sm:grid-cols-2">
               <Button as={Link} to={destination} icon={orderId ? PackageCheck : Rocket}>{orderId ? 'Voir la commande' : 'Voir mes boosts'}</Button>
               <Button as={Link} to="/connected" variant="secondary">Retour à l’accueil</Button>
