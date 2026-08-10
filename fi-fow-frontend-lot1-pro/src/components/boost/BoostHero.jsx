@@ -9,7 +9,7 @@ export default function BoostHero() {
           <Rocket className="h-20 w-20" />
         </div>
         <div>
-          <h2 className="text-2xl font-black tracking-[-0.05em] text-fifow-primary sm:text-4xl">Boostez. Soyez vu. Vendez plus.</h2>
+          <h2 className="text-2xl font-black text-fifow-primary sm:text-3xl">Boostez. Soyez vu. Vendez plus.</h2>
           <p className="mt-3 max-w-2xl text-base font-semibold leading-7 text-fifow-dark sm:text-lg">
             Placez votre annonce en tête des résultats et touchez plus d’acheteurs locaux en un temps record.
           </p>

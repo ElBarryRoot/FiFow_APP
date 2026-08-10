@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Flag, Heart, MessageCircle, Share2, ShoppingBag, ThumbsUp } from 'lucide-react'
+import { Flag, Heart, MessageCircle, ShoppingBag, ThumbsUp } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { catalogueApi } from '../../api/catalogue.js'
 import { conversationsApi } from '../../api/conversations.js'
@@ -10,6 +10,8 @@ import { useFavorites } from '../../lib/favorites.jsx'
 import { useToast } from '../../lib/toast.jsx'
 import { cn } from '../../lib/utils.js'
 import Button from '../ui/Button.jsx'
+import ProductShareActions from './ProductShareActions.jsx'
+import ProductShareMenu from './ProductShareMenu.jsx'
 
 export default function ProductActions({ product }) {
   const auth = useAuth()
@@ -57,19 +59,17 @@ export default function ProductActions({ product }) {
     showToast(added ? 'Ajouté à vos favoris' : 'Retiré de vos favoris', { type: added ? 'success' : 'info' })
   }
 
-  async function shareProduct() {
-    const shareData = { title: product.title, text: `${product.title} sur Fi Fow`, url: window.location.href }
-    try {
-      if (navigator.share) await navigator.share(shareData)
-      else await navigator.clipboard.writeText(window.location.href)
-      showToast(navigator.share ? 'Partage ouvert' : 'Lien copié')
-    } catch (error) {
-      if (error?.name !== 'AbortError') showToast('Impossible de partager ce produit', { type: 'error' })
-    }
+  function shareFeedback(message, type = 'success') {
+    showToast(message, { type })
   }
 
   if (ownProduct) {
-    return <div className="grid gap-2 sm:grid-cols-2"><Button as={Link} to="/profile/listings" className="w-full">Gérer mon annonce</Button><Button type="button" variant="secondary" icon={Share2} onClick={shareProduct}>Partager</Button></div>
+    return (
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <Button as={Link} to="/profile/listings" size="lg" className="w-full sm:flex-1">Gérer mon annonce</Button>
+        <ProductShareActions title={product.title} onFeedback={shareFeedback} className="justify-between sm:justify-end" />
+      </div>
+    )
   }
 
   return (
@@ -81,7 +81,7 @@ export default function ProductActions({ product }) {
       <div className="grid grid-cols-4 gap-2">
         <SmallAction icon={Heart} label="Favori" active={favorite} onClick={toggleFavorite} />
         <SmallAction icon={ThumbsUp} label="J’aime" active={liked} onClick={() => auth.isAuthenticated ? likeMutation.mutate() : navigate('/login', { state: { from: location } })} />
-        <SmallAction icon={Share2} label="Partager" onClick={shareProduct} />
+        <ProductShareMenu title={product.title} onFeedback={shareFeedback} />
         <SmallAction
           as={Link}
           to={`/report/${product.id}`}

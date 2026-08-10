@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useInfiniteQuery } from '@tanstack/react-query'
 import { SearchX, SlidersHorizontal } from 'lucide-react'
 import { useSearchParams } from 'react-router-dom'
@@ -13,6 +13,7 @@ import Button from '../../components/ui/Button.jsx'
 export default function Catalogue() {
   const [searchParams, setSearchParams] = useSearchParams()
   const [filtersOpen, setFiltersOpen] = useState(false)
+  const loadMoreRef = useRef(null)
   const filters = useMemo(() => ({
     q: searchParams.get('q') ?? '',
     category: searchParams.get('category') ?? '',
@@ -47,6 +48,18 @@ export default function Catalogue() {
   const products = productsQuery.data?.pages.flatMap((page) => page.items) || []
 
   useEffect(() => {
+    const target = loadMoreRef.current
+    if (!target || !productsQuery.hasNextPage || productsQuery.isFetchingNextPage || !('IntersectionObserver' in window)) return undefined
+
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) productsQuery.fetchNextPage()
+    }, { rootMargin: '480px 0px' })
+
+    observer.observe(target)
+    return () => observer.disconnect()
+  }, [productsQuery.fetchNextPage, productsQuery.hasNextPage, productsQuery.isFetchingNextPage])
+
+  useEffect(() => {
     document.body.style.overflow = filtersOpen ? 'hidden' : ''
     return () => { document.body.style.overflow = '' }
   }, [filtersOpen])
@@ -72,9 +85,9 @@ export default function Catalogue() {
       <div className="marketplace-container py-6 lg:py-8">
         <div className="mb-5 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-bold text-fifow-primary">Marketplace</p>
-            <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">{filters.q ? `Résultats pour “${filters.q}”` : 'Toutes les annonces'}</h1>
-            <p className="mt-1 text-sm font-semibold text-fifow-secondary">{products.length} annonce{products.length > 1 ? 's' : ''} chargée{products.length > 1 ? 's' : ''}</p>
+            <p className="page-eyebrow">Marketplace</p>
+            <h1 className="page-title mt-1">{filters.q ? `Résultats pour “${filters.q}”` : 'Toutes les annonces'}</h1>
+            <p className="mt-1 text-sm font-medium text-fifow-secondary">{products.length} annonce{products.length > 1 ? 's' : ''} affichée{products.length > 1 ? 's' : ''}</p>
           </div>
           <div className="flex items-center gap-2">
             <Button variant="secondary" size="sm" icon={SlidersHorizontal} onClick={() => setFiltersOpen(true)} className="lg:hidden">Filtres {activeFilterCount ? `(${activeFilterCount})` : ''}</Button>
@@ -91,13 +104,13 @@ export default function Catalogue() {
 
         <div className="grid items-start gap-6 lg:grid-cols-[260px_minmax(0,1fr)] xl:grid-cols-[280px_minmax(0,1fr)]">
           <aside className="sticky top-[92px] hidden lg:block"><FilterBar filters={filters} onChange={updateFilter} onClear={clearFilters} /></aside>
-          <section aria-live="polite">
+          <section aria-live="polite" aria-busy={productsQuery.isLoading || productsQuery.isFetchingNextPage}>
             {productsQuery.isLoading ? <ProductGridSkeleton /> : null}
             {productsQuery.isError ? <ErrorState onRetry={productsQuery.refetch} /> : null}
             {!productsQuery.isLoading && !productsQuery.isError && products.length ? (
               <>
                 <div className="grid grid-cols-2 gap-3 sm:gap-4 md:grid-cols-3 xl:grid-cols-4">{products.map((product) => <ProductCard key={product.id} product={product} />)}</div>
-                {productsQuery.hasNextPage ? <Button variant="secondary" className="mx-auto mt-7 flex" loading={productsQuery.isFetchingNextPage} onClick={() => productsQuery.fetchNextPage()}>Charger plus d’annonces</Button> : null}
+                {productsQuery.hasNextPage ? <div ref={loadMoreRef} className="mt-7 flex justify-center"><Button variant="secondary" loading={productsQuery.isFetchingNextPage} onClick={() => productsQuery.fetchNextPage()}>Afficher plus d’annonces</Button></div> : null}
               </>
             ) : null}
             {!productsQuery.isLoading && !productsQuery.isError && !products.length ? <EmptyState onClear={clearFilters} /> : null}

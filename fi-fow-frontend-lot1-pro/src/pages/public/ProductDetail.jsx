@@ -48,20 +48,20 @@ export default function ProductDetail() {
           <Link to="/products" className="inline-flex items-center gap-2 transition hover:text-fifow-primary"><ArrowLeft className="h-4 w-4" /> Annonces</Link>
           <span>/</span><span className="truncate text-fifow-dark">{product.title}</span>
         </nav>
-        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1.25fr)_minmax(370px,0.75fr)] xl:gap-7">
+        <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,0.98fr)_minmax(360px,0.72fr)] xl:grid-cols-[minmax(0,720px)_minmax(380px,1fr)] xl:gap-7">
           <ProductGallery product={product} />
           <aside className="space-y-4 lg:sticky lg:top-[92px]">
-            <section className="rounded-lg border border-fifow-border bg-white p-5 shadow-card sm:p-6">
+            <section className="flex rounded-lg border border-fifow-border bg-white p-5 shadow-card sm:p-6 lg:h-[400px] lg:flex-col xl:h-[440px]">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="success">{product.condition}</Badge>
                 {product.negotiable ? <Badge variant="primary">Négociable</Badge> : null}
                 {product.boosted ? <Badge variant="boost">Annonce boostée</Badge> : null}
               </div>
-              <h1 className="mt-4 text-2xl font-black leading-tight text-fifow-dark sm:text-3xl">{product.title}</h1>
+              <h1 className="mt-4 text-2xl font-black leading-tight text-fifow-dark sm:text-[2rem]">{product.title}</h1>
               <p className="mt-2 text-3xl font-black text-fifow-primary">{formatGNF(product.price)}</p>
               <p className="mt-3 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {product.location}</p>
               <div className="mt-5"><SellerPreviewCard seller={product.seller} /></div>
-              <div className="mt-4"><ProductActions product={product} /></div>
+              <div className="mt-4 lg:mt-auto"><ProductActions product={product} /></div>
             </section>
             <section className="rounded-lg border border-fifow-border bg-white p-5">
               <h2 className="text-lg font-black text-fifow-dark">Description</h2>
@@ -70,9 +70,9 @@ export default function ProductDetail() {
             </section>
           </aside>
         </div>
-        <section className="mt-7 flex items-start gap-3 rounded-lg border border-emerald-100 bg-fifow-mint p-4">
+        <section className="mt-7 flex items-start gap-3 rounded-lg border border-emerald-100 bg-fifow-mint p-4 lg:max-w-[720px]">
           <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-fifow-green" />
-          <div><h2 className="font-extrabold text-fifow-dark">Achetez avec attention</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">Vérifiez le produit avant la remise et conservez vos échanges dans Fi Fow.</p></div>
+          <div><h2 className="font-extrabold text-fifow-dark">Paiement sécurisé</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">Gardez les échanges dans Fi Fow et confirmez la réception seulement après vérification.</p></div>
         </section>
         {suggestions.length ? <section className="mt-10"><div className="mb-4 flex items-center justify-between gap-4"><h2 className="section-title">Produits similaires</h2><Link to={`/products?category=${product.category.slug}`} className="text-sm font-extrabold text-fifow-primary">Voir tout</Link></div><div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4">{suggestions.map((item) => <ProductCard key={item.id} product={item} />)}</div></section> : null}
       </div>

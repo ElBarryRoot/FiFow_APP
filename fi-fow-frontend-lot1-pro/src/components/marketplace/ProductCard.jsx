@@ -1,6 +1,9 @@
 import { Eye, Heart, MapPin, ShieldCheck, Zap } from 'lucide-react'
 import { Link } from 'react-router-dom'
+import { useQueryClient } from '@tanstack/react-query'
 import Badge from '../ui/Badge.jsx'
+import { catalogueApi } from '../../api/catalogue.js'
+import { queryKeys } from '../../api/queryKeys.js'
 import { formatGNF } from '../../lib/formatters.js'
 import { cn } from '../../lib/utils.js'
 import { useFavorites } from '../../lib/favorites.jsx'
@@ -11,7 +14,18 @@ export default function ProductCard({ product, compact = false, horizontal = fal
   const { isFavorite, toggle } = useFavorites()
   const showToast = useToast()
   const auth = useAuth()
+  const queryClient = useQueryClient()
   const favorite = isFavorite(product.id)
+
+  function prefetchProduct() {
+    const identifier = product.slug || product.id
+    if (!identifier) return
+    void queryClient.prefetchQuery({
+      queryKey: queryKeys.product(identifier),
+      queryFn: () => catalogueApi.detail(identifier),
+      staleTime: 60_000,
+    })
+  }
 
   function handleFavorite(event) {
     event.preventDefault()
@@ -24,6 +38,8 @@ export default function ProductCard({ product, compact = false, horizontal = fal
   return (
     <Link
       to={`/products/${product.slug || product.id}`}
+      onMouseEnter={prefetchProduct}
+      onFocus={prefetchProduct}
       className={cn(
         'group flex min-w-0 flex-col overflow-hidden rounded-lg border border-fifow-border bg-white shadow-card transition duration-200 hover:border-violet-200 hover:shadow-soft',
         horizontal && 'w-[78vw] max-w-[340px] shrink-0 sm:w-[320px] lg:w-auto lg:max-w-none',
@@ -34,6 +50,11 @@ export default function ProductCard({ product, compact = false, horizontal = fal
           src={product.image}
           alt={product.title}
           loading="lazy"
+          decoding="async"
+          onError={(event) => {
+            event.currentTarget.onerror = null
+            event.currentTarget.src = '/assets/empty-product.svg'
+          }}
           className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-[1.025]"
         />
         <div className="absolute left-3 top-3 flex max-w-[calc(100%-4rem)] flex-wrap gap-1.5">

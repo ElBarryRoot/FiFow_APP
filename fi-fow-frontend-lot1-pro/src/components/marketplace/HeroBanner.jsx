@@ -1,29 +1,62 @@
-import { ArrowRight, BriefcaseBusiness, Heart, MessageCircle, Plus } from 'lucide-react'
+import { ArrowRight, BriefcaseBusiness, Heart, MessageCircle, Plus, ShieldCheck } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { toUserView } from '../../api/adapters.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { useFavorites } from '../../lib/favorites.jsx'
 import Button from '../ui/Button.jsx'
+import SearchBar from './SearchBar.jsx'
+
+const heroProducts = [
+  { title: 'Smartphones', image: '/assets/phone.png', to: '/products?category=telephones' },
+  { title: 'Mode', image: '/assets/orangebag.png', to: '/products?category=mode' },
+  { title: 'Maison', image: '/assets/sofa.png', to: '/products?category=maison' },
+]
 
 export function GuestHero() {
   return (
-    <section className="relative min-h-[340px] overflow-hidden rounded-lg bg-[#ebe7ff] px-6 py-9 sm:px-10 lg:min-h-[410px] lg:px-14 lg:py-12">
+    <section className="relative min-h-[360px] overflow-hidden rounded-lg border border-violet-100 bg-[#f3f0ff] px-5 py-7 sm:px-8 lg:min-h-[420px] lg:px-12 lg:py-10">
       <img
-        src="/assets/hero_guest.png"
+        src="/assets/fifow-marketplace-hero.png"
         alt=""
-        className="absolute inset-y-0 right-0 h-full w-full object-cover object-[68%_center] opacity-20 sm:w-[64%] sm:object-center sm:opacity-100 lg:w-[58%]"
+        className="absolute inset-y-0 right-0 hidden h-full w-[48%] object-cover object-[74%_center] opacity-70 lg:block"
       />
-      <div className="relative z-10 max-w-[18rem] sm:max-w-[34rem]">
-        <p className="text-sm font-extrabold uppercase text-fifow-primary">La marketplace locale</p>
-        <h1 className="mt-3 text-3xl font-black leading-[1.05] text-fifow-dark sm:text-5xl lg:text-6xl">
-          Fi Fow Marketplace
-        </h1>
-        <p className="mt-4 max-w-md text-base font-semibold leading-7 text-fifow-secondary sm:text-lg">
-          Achetez et vendez facilement en Guinée, auprès de personnes proches de vous.
-        </p>
-        <div className="mt-7 flex flex-wrap gap-3">
-          <Button as={Link} to="/products" icon={ArrowRight}>Explorer les annonces</Button>
-          <Button as={Link} to="/login" variant="secondary" icon={Plus}>Publier une annonce</Button>
+      <div className="absolute inset-y-0 right-[39%] hidden w-[28%] bg-gradient-to-r from-[#f3f0ff] via-[#f3f0ff]/72 to-transparent lg:block" aria-hidden="true" />
+      <div className="relative z-10 grid items-end gap-7 lg:grid-cols-[minmax(0,1fr)_390px]">
+        <div className="max-w-3xl">
+          <p className="inline-flex rounded-md bg-white/90 px-3 py-1.5 text-xs font-black uppercase text-fifow-primary shadow-card">
+            Marketplace locale
+          </p>
+          <h1 className="mt-4 max-w-2xl text-3xl font-black leading-[1.08] text-fifow-dark sm:text-[2.5rem] lg:text-[2.75rem]">
+            Trouvez, vendez et achetez plus simplement en Guinee.
+          </h1>
+          <p className="mt-4 max-w-xl text-base font-semibold leading-7 text-fifow-secondary">
+            Des annonces proches de vous, des vendeurs visibles et un achat guide jusqu'a la remise.
+          </p>
+          <div className="mt-6 w-full max-w-xl">
+            <SearchBar placeholder="Rechercher un produit, une marque ou un quartier" />
+          </div>
+          <div className="mt-5 flex flex-wrap gap-3">
+            <Button as={Link} to="/products" icon={ArrowRight}>Explorer</Button>
+            <Button as={Link} to="/login" variant="secondary" icon={Plus}>Publier</Button>
+          </div>
+        </div>
+
+        <div className="hidden rounded-lg border border-white/80 bg-white/86 p-3 shadow-card backdrop-blur-sm lg:block">
+          <div className="mb-3 flex items-center justify-between">
+            <p className="text-sm font-black text-fifow-dark">Categories actives</p>
+            <span className="inline-flex items-center gap-1 text-xs font-extrabold text-emerald-700">
+              <ShieldCheck className="h-4 w-4" /> Fi Fow
+            </span>
+          </div>
+          <div className="grid gap-2">
+            {heroProducts.map((item) => (
+              <Link key={item.title} to={item.to} className="flex h-20 items-center gap-3 rounded-md border border-fifow-border bg-white/85 p-2 transition hover:border-violet-200 hover:bg-fifow-lavender">
+                <img src={item.image} alt="" className="h-16 w-16 rounded-md bg-slate-50 object-contain" />
+                <span className="font-extrabold text-fifow-dark">{item.title}</span>
+                <ArrowRight className="h-4 w-4 shrink-0 text-fifow-primary" />
+              </Link>
+            ))}
+          </div>
         </div>
       </div>
     </section>
@@ -36,26 +69,26 @@ export function ConnectedHero() {
   const currentUser = toUserView(auth.user)
 
   return (
-    <section className="relative min-h-[330px] overflow-hidden rounded-lg bg-[#eaf8f3] px-6 py-8 sm:px-10 lg:min-h-[390px] lg:px-14 lg:py-11">
+    <section className="relative overflow-hidden rounded-lg border border-emerald-100 bg-[#eaf8f3] px-5 py-7 sm:px-8 lg:px-12 lg:py-10">
       <img
         src="/assets/hero_connected.png"
         alt=""
-        className="absolute inset-y-0 right-0 h-full w-full object-cover object-[70%_center] opacity-20 sm:w-[60%] sm:object-center sm:opacity-100 lg:w-[54%]"
+        className="absolute inset-y-0 right-0 h-full w-full object-cover object-[70%_center] opacity-10 sm:w-[54%] sm:opacity-45 lg:w-[44%]"
       />
-      <div className="relative z-10 max-w-[19rem] sm:max-w-[38rem]">
+      <div className="relative z-10 max-w-4xl">
         <div className="flex items-center gap-3">
-          <img src={currentUser.avatar} alt="" className="h-14 w-14 rounded-full border-4 border-white object-cover shadow-card" />
+          <img src={currentUser.avatar} alt="" className="h-14 w-14 rounded-lg border-4 border-white object-cover shadow-card" />
           <div>
             <p className="text-sm font-extrabold uppercase text-fifow-green">Votre espace</p>
-            <h1 className="text-3xl font-black text-fifow-dark sm:text-4xl">Bonjour {currentUser.name}</h1>
+            <h1 className="text-2xl font-black text-fifow-dark sm:text-[2rem]">Bonjour {currentUser.name}</h1>
           </div>
         </div>
-        <p className="mt-4 max-w-md text-base font-semibold leading-7 text-fifow-secondary sm:text-lg">
-          Retrouvez vos annonces, vos favoris et les nouvelles opportunités près de chez vous.
+        <p className="mt-4 max-w-xl text-base font-semibold leading-7 text-fifow-secondary">
+          Reprenez vos annonces, vos favoris et vos conversations sans perdre le fil.
         </p>
-        <div className="mt-7 grid max-w-xl grid-cols-1 gap-2 sm:grid-cols-3">
+        <div className="mt-7 grid max-w-2xl grid-cols-1 gap-2 sm:grid-cols-3">
           <QuickAction to="/profile/listings" icon={BriefcaseBusiness} label="Mes annonces" />
-          <QuickAction to="/favorites" icon={Heart} label="Favoris" value={`${favorites.ids.size} enregistré${favorites.ids.size > 1 ? 's' : ''}`} />
+          <QuickAction to="/favorites" icon={Heart} label="Favoris" value={`${favorites.ids.size} enregistre${favorites.ids.size > 1 ? 's' : ''}`} />
           <QuickAction to="/messages" icon={MessageCircle} label="Messages" />
         </div>
       </div>

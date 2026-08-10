@@ -6,7 +6,7 @@ export default function SellerPreviewCard({ seller }) {
 
   return (
     <Link to={`/seller/${seller.id}`} className="flex w-full items-center gap-3 rounded-lg border border-fifow-border bg-slate-50/70 p-3 text-left transition-colors hover:border-violet-200 hover:bg-fifow-lavender/40">
-      <img src={seller.avatar || '/assets/avatar-default.svg'} alt="" className="h-12 w-12 rounded-full bg-white object-cover" />
+      <img src={seller.avatar || '/assets/avatar-default.svg'} alt="" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/assets/avatar-default.svg' }} className="h-12 w-12 rounded-full bg-white object-cover" />
       <span className="min-w-0 flex-1">
         <span className="block truncate font-extrabold text-fifow-dark">{seller.name}</span>
         <span className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs font-bold">
