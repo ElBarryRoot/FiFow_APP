@@ -70,12 +70,27 @@ export function ConnectedHero() {
 
   return (
     <section className="relative overflow-hidden rounded-lg border border-emerald-100 bg-[#eaf8f3] px-5 py-7 sm:px-8 lg:px-12 lg:py-10">
-      <img
-        src="/assets/publication+_accueil.jpg"
-        alt=""
-        className="absolute inset-y-0 right-0 h-full w-full object-cover object-center opacity-10 sm:w-[54%] sm:opacity-45 lg:w-[44%]"
-      />
-      <div className="relative z-10 max-w-4xl">
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+        <img
+          src="/assets/hero_connected_v2.png"
+          alt=""
+          className="absolute inset-y-0 right-0 hidden h-full w-[54%] object-contain object-right sm:block lg:w-[44%]"
+        />
+        <div className="absolute inset-0 bg-gradient-to-r from-[#eaf8f3] via-[#eaf8f3]/90 to-[#eaf8f3]/10 sm:via-[#eaf8f3]/65" />
+        <div className="absolute right-[29%] top-1/2 z-10 hidden h-52 w-64 -translate-y-1/2 2xl:block">
+          <img
+            src="/assets/publication+_accueil.jpg"
+            alt=""
+            className="hero-publication-float absolute left-0 top-3 h-28 w-36 rounded-2xl border-2 border-white/90 object-cover object-center shadow-xl"
+          />
+          <img
+            src="/assets/iphone_accueil.jpg"
+            alt=""
+            className="hero-product-float absolute bottom-1 right-3 h-40 w-32 rounded-2xl border-2 border-white/90 object-cover object-top shadow-2xl [filter:hue-rotate(230deg)_saturate(.72)_brightness(1.08)]"
+          />
+        </div>
+      </div>
+      <div className="relative z-20 max-w-4xl">
         <div className="flex items-center gap-3">
           <img src={currentUser.avatar} alt="" className="h-14 w-14 rounded-lg border-4 border-white object-cover shadow-card" />
           <div>
