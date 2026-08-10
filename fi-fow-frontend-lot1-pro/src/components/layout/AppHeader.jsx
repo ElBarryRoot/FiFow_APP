@@ -1,5 +1,5 @@
-import { ArrowLeft, Bell, Heart, MailWarning, MapPin, MessageCircle, Plus, SlidersHorizontal } from 'lucide-react'
-import { useState } from 'react'
+import { ArrowLeft, Bell, Heart, MailWarning, MapPin, MessageCircle, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { conversationsApi } from '../../api/conversations.js'
@@ -30,8 +30,14 @@ export default function AppHeader({
   const auth = useAuth()
   const showToast = useToast()
   const [resending, setResending] = useState(false)
+  const [emailNoticeDismissed, setEmailNoticeDismissed] = useState(false)
   const isConnected = auth.isAuthenticated
   const currentUser = toUserView(auth.user)
+
+  useEffect(() => {
+    const storageKey = auth.user?.id ? `fifow:email-notice-dismissed:${auth.user.id}` : ''
+    setEmailNoticeDismissed(Boolean(storageKey && localStorage.getItem(storageKey)))
+  }, [auth.user?.id])
   const conversationsQuery = useQuery({
     queryKey: queryKeys.conversationList,
     queryFn: () => conversationsApi.list({ limit: 20, userId: auth.user.id }),
@@ -57,6 +63,12 @@ export default function AppHeader({
     } finally {
       setResending(false)
     }
+  }
+
+  function dismissEmailNotice() {
+    const storageKey = auth.user?.id ? `fifow:email-notice-dismissed:${auth.user.id}` : ''
+    if (storageKey) localStorage.setItem(storageKey, 'true')
+    setEmailNoticeDismissed(true)
   }
 
   return (
@@ -125,12 +137,17 @@ export default function AppHeader({
             <SearchBar actionIcon={SlidersHorizontal} onAction={onFilters} defaultValue={searchDefaultValue} onSubmit={onSearch} />
           </div>
         ) : null}
-        {isConnected && auth.requiresEmailVerification ? (
+        {isConnected && auth.requiresEmailVerification && !emailNoticeDismissed ? (
           <div className="flex flex-wrap items-center justify-between gap-3 border-t border-amber-100 bg-amber-50 px-3 py-2.5 text-sm sm:px-4">
             <p className="flex items-center gap-2 font-bold text-amber-900"><MailWarning className="h-4 w-4" /> Vérifiez votre email pour publier, négocier et envoyer des messages.</p>
-            <button type="button" onClick={resendVerification} disabled={resending} className="font-black text-fifow-primary hover:underline disabled:opacity-50">
-              {resending ? 'Envoi…' : 'Renvoyer le lien'}
-            </button>
+            <div className="ml-auto flex items-center gap-3">
+              <button type="button" onClick={resendVerification} disabled={resending} className="font-black text-fifow-primary hover:underline disabled:opacity-50">
+                {resending ? 'Envoi…' : 'Renvoyer le lien'}
+              </button>
+              <button type="button" onClick={dismissEmailNotice} aria-label="Masquer le rappel de vérification email" className="grid h-8 w-8 place-items-center rounded-md text-amber-900 transition hover:bg-amber-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-500">
+                <X className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         ) : null}
       </div>
