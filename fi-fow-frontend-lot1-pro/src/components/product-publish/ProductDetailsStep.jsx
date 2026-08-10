@@ -44,7 +44,7 @@ export default function ProductDetailsStep({ draft, updateDraft, categories = []
             <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg bg-white text-fifow-primary shadow-sm"><Sparkles className="h-5 w-5" /></span>
             <div>
               <h3 id="description-assistant-title" className="font-extrabold text-fifow-dark">Assistant de description</h3>
-              <p className="mt-1 text-sm font-medium leading-5 text-fifow-secondary">Une base locale à relire et compléter avant publication.</p>
+              <p className="mt-1 text-sm font-medium leading-5 text-fifow-secondary">Une suggestion simple de 24 mots maximum, à modifier librement.</p>
             </div>
           </div>
           <Button type="button" variant="secondary" size="sm" icon={Sparkles} disabled={!draft.title.trim()} onClick={applySuggestedDescription} className="shrink-0">

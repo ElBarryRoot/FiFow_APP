@@ -5,26 +5,27 @@ function cleanText(value, maxLength = 180) {
     .slice(0, maxLength)
 }
 
+function wordCount(value) {
+  return String(value || '').match(/\S+/gu)?.length || 0
+}
+
+function limitWords(value, maxWords) {
+  return String(value || '').match(/\S+/gu)?.slice(0, maxWords).join(' ') || ''
+}
+
+function lowerCaseFirst(value) {
+  return value ? `${value.charAt(0).toLocaleLowerCase('fr-FR')}${value.slice(1)}` : ''
+}
+
 /**
- * Produces an intentionally conservative starting point. It only repeats
- * information already selected by the seller and leaves product-specific
- * facts for the seller to confirm.
+ * Produces a concise starting point from information selected by the seller.
+ * The result stays within 24 words and never invents product characteristics.
  */
-export function buildLocalDescriptionDraft({ title, categoryName, subcategoryName, conditionLabel }) {
-  const safeTitle = cleanText(title, 140)
-  const safeCategory = cleanText(categoryName, 80)
-  const safeSubcategory = cleanText(subcategoryName, 80)
-  const safeCondition = cleanText(conditionLabel, 80)
-  const categoryPath = [safeCategory, safeSubcategory].filter(Boolean).join(' - ')
+export function buildLocalDescriptionDraft({ title, conditionLabel }) {
+  const safeCondition = lowerCaseFirst(limitWords(cleanText(conditionLabel, 80), 4)) || 'bon état'
+  const ending = `en ${safeCondition}, propre et prêt à l’emploi. Contactez-moi via Fi Fow pour convenir de la remise.`
+  const titleWordsAvailable = Math.max(1, 24 - wordCount(ending))
+  const safeTitle = limitWords(cleanText(title, 140), titleWordsAvailable) || 'Cet article'
 
-  const lines = [
-    safeTitle ? `Je vends ${safeTitle}.` : 'Je vends cet article.',
-    safeCondition ? `État indiqué : ${safeCondition}.` : '',
-    categoryPath ? `Catégorie : ${categoryPath}.` : '',
-    'Caractéristiques à compléter : [modèle, taille, dimensions ou informations utiles].',
-    'Accessoires inclus et éventuels défauts : [à préciser honnêtement].',
-    'Écrivez-moi dans Fi Fow pour toute question et pour confirmer la remise.',
-  ].filter(Boolean)
-
-  return lines.join('\n\n')
+  return `${safeTitle} ${ending}`
 }

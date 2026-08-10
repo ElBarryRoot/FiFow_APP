@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { buildLocalDescriptionDraft } from './descriptionAssistant.js'
 
 describe('buildLocalDescriptionDraft', () => {
-  it('reuses seller inputs without inventing product characteristics', () => {
+  it('creates a concise description without placeholders or category repetition', () => {
     const description = buildLocalDescriptionDraft({
       title: 'iPhone 13 256 Go',
       categoryName: 'Téléphones',
@@ -10,15 +10,18 @@ describe('buildLocalDescriptionDraft', () => {
       conditionLabel: 'Très bon état',
     })
 
-    expect(description).toContain('Je vends iPhone 13 256 Go.')
-    expect(description).toContain('État indiqué : Très bon état.')
-    expect(description).toContain('Téléphones - Smartphones')
-    expect(description).toContain('[modèle, taille, dimensions ou informations utiles]')
+    expect(description).toBe('iPhone 13 256 Go en très bon état, propre et prêt à l’emploi. Contactez-moi via Fi Fow pour convenir de la remise.')
+    expect(description).not.toContain('[')
+    expect(description).not.toContain('Téléphones')
   })
 
-  it('normalizes untrusted title whitespace before adding it to the draft', () => {
-    const description = buildLocalDescriptionDraft({ title: '  Sac   à   porter  ' })
+  it('keeps every suggestion within 24 words', () => {
+    const description = buildLocalDescriptionDraft({
+      title: 'iPhone 13 Pro Max 256 Go bleu avec coque de protection',
+      conditionLabel: 'Très bon état avec une légère trace',
+    })
 
-    expect(description).toContain('Je vends Sac à porter.')
+    expect(description.match(/\S+/gu)).toHaveLength(24)
+    expect(description).toContain('Contactez-moi via Fi Fow pour convenir de la remise.')
   })
 })
