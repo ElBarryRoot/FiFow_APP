@@ -109,12 +109,14 @@ export const adminApi = {
     list: (filters) => list('/admin/payments', filters),
     detail: (id) => data(`/admin/payments/${id}`),
     refund: (id, input) => data(`/admin/payments/${id}/refunds`, { method: 'POST', body: input }),
+    confirmSandboxRefund: (id, input) => data(`/admin/payments/${id}/refunds/sandbox-confirm`, { method: 'POST', body: input }),
   },
 
   payouts: {
     list: (filters) => list('/admin/payouts', filters),
     detail: (id) => data(`/admin/payouts/${id}`),
     process: (id) => data(`/admin/payouts/${id}/process`, { method: 'POST' }),
+    confirmSandbox: (id, input) => data(`/admin/payouts/${id}/sandbox-confirm`, { method: 'POST', body: input }),
   },
 
   reviews: {
@@ -161,4 +163,3 @@ export const adminApi = {
     list: (filters) => list('/admin/logs', filters),
   },
 }
-

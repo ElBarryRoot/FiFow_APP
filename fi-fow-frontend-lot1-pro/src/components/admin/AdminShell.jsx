@@ -3,6 +3,7 @@ import {
   Banknote,
   Boxes,
   ClipboardList,
+  ChevronDown,
   FileClock,
   Flag,
   FolderTree,
@@ -64,7 +65,7 @@ const navigation = [
     items: [
       { label: 'Catégories', to: '/admin/categories', icon: FolderTree },
       { label: 'Réglages', to: '/admin/settings', icon: Settings, capability: 'manageSettings' },
-      { label: 'Journal d’audit', to: '/admin/logs', icon: FileClock },
+      { label: 'Historique des actions', to: '/admin/logs', icon: FileClock },
     ],
   },
 ]
@@ -84,11 +85,12 @@ const pageNames = {
   '/admin/boosts': 'Boosts',
   '/admin/categories': 'Catégories',
   '/admin/settings': 'Réglages',
-  '/admin/logs': 'Journal d’audit',
+  '/admin/logs': 'Historique des actions',
 }
 
 export default function AdminShell() {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [profileOpen, setProfileOpen] = useState(false)
   const auth = useAuth()
   const location = useLocation()
   const navigate = useNavigate()
@@ -103,6 +105,7 @@ export default function AdminShell() {
   }, [location.pathname])
 
   async function logout() {
+    setProfileOpen(false)
     await auth.logout()
     navigate('/login', { replace: true })
   }
@@ -127,16 +130,6 @@ export default function AdminShell() {
           <button type="button" aria-label="Fermer" onClick={() => setMobileOpen(false)} className="grid h-10 w-10 place-items-center rounded-lg text-fifow-secondary hover:bg-slate-100 lg:hidden">
             <X className="h-5 w-5" />
           </button>
-        </div>
-
-        <div className="border-b border-fifow-border px-4 py-4">
-          <div className="flex items-center gap-3 rounded-lg bg-fifow-bg p-3">
-            <img src={user.avatar} alt="" className="h-10 w-10 rounded-full object-cover" />
-            <div className="min-w-0">
-              <p className="truncate text-sm font-extrabold">{user.fullName}</p>
-              <p className="truncate text-xs font-bold text-fifow-primary">{roleLabel(user.role)}</p>
-            </div>
-          </div>
         </div>
 
         <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4" aria-label="Administration">
@@ -182,20 +175,37 @@ export default function AdminShell() {
       </aside>
 
       <div className="min-h-screen lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-[72px] items-center gap-3 border-b border-fifow-border bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
+        <header className="sticky top-0 z-30 flex h-[68px] items-center gap-3 border-b border-fifow-border bg-white/95 px-4 backdrop-blur-xl sm:px-6 lg:px-8">
           <button type="button" aria-label="Ouvrir la navigation" onClick={() => setMobileOpen(true)} className="grid h-10 w-10 place-items-center rounded-lg border border-fifow-border text-fifow-secondary lg:hidden">
             <Menu className="h-5 w-5" />
           </button>
           <div className="min-w-0 flex-1">
-            <p className="text-xs font-black uppercase text-fifow-primary">Administration FiFow</p>
+            <p className="text-[11px] font-extrabold uppercase text-fifow-primary">Administration Fi Fow</p>
             <h1 className="truncate text-lg font-black sm:text-xl">{pageName}</h1>
           </div>
-          <span className="hidden items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 sm:inline-flex">
+          <span className="hidden items-center gap-2 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-extrabold text-emerald-700 xl:inline-flex">
             <ShieldCheck className="h-4 w-4" /> Session sécurisée
           </span>
+          <div className="relative">
+            <button type="button" onClick={() => setProfileOpen((current) => !current)} aria-expanded={profileOpen} aria-haspopup="menu" className="flex h-10 items-center gap-2 rounded-lg border border-fifow-border bg-white p-1 pr-2 text-left transition hover:border-violet-200 hover:bg-fifow-lavender">
+              <img src={user.avatar} alt="" className="h-8 w-8 rounded-md object-cover" />
+              <span className="hidden max-w-36 truncate text-sm font-extrabold text-fifow-dark sm:inline">{user.shortName || user.fullName}</span>
+              <ChevronDown className="hidden h-4 w-4 text-fifow-secondary sm:block" />
+            </button>
+            {profileOpen ? (
+              <div role="menu" className="absolute right-0 top-[calc(100%+0.5rem)] z-50 w-60 rounded-lg border border-fifow-border bg-white p-2 shadow-soft">
+                <div className="border-b border-fifow-border px-3 py-2.5">
+                  <p className="truncate text-sm font-extrabold text-fifow-dark">{user.fullName}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-fifow-secondary">{roleLabel(user.role)}</p>
+                </div>
+                {canAdmin(auth.user, 'manageSettings') ? <Link role="menuitem" to="/admin/settings" onClick={() => setProfileOpen(false)} className="mt-1 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-bold text-fifow-secondary transition hover:bg-slate-100 hover:text-fifow-dark"><Settings className="h-4 w-4" /> Réglages</Link> : null}
+                <button type="button" role="menuitem" onClick={logout} className="flex h-10 w-full items-center gap-3 rounded-md px-3 text-sm font-bold text-fifow-secondary transition hover:bg-red-50 hover:text-fifow-red"><LogOut className="h-4 w-4" /> Déconnexion</button>
+              </div>
+            ) : null}
+          </div>
         </header>
 
-        <main className="mx-auto w-full max-w-[1680px] px-4 py-5 sm:px-6 lg:px-8 lg:py-7">
+        <main className="mx-auto w-full max-w-[1440px] px-4 py-4 sm:px-6 lg:px-7 lg:py-5">
           <Outlet />
         </main>
       </div>
@@ -208,4 +218,3 @@ function roleLabel(role) {
   if (role === 'ADMIN') return 'Administrateur'
   return 'Modérateur'
 }
-

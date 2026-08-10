@@ -15,7 +15,7 @@ export default function AdminMetric({ label, value, helper, icon: Icon, tone = '
     <Component {...(to ? { to } : {})} className="flex min-h-32 items-start justify-between rounded-lg border border-fifow-border bg-white p-4 shadow-card transition-colors hover:border-violet-200">
       <div className="min-w-0">
         <p className="text-sm font-bold text-fifow-secondary">{label}</p>
-        <p className="mt-2 break-words text-2xl font-black text-fifow-dark sm:text-3xl">{value}</p>
+        <p className="mt-2 break-words text-2xl font-black text-fifow-dark">{value}</p>
         {helper ? <p className="mt-1 text-xs font-semibold text-fifow-muted">{helper}</p> : null}
       </div>
       <span className={cn('grid h-10 w-10 shrink-0 place-items-center rounded-lg', tones[tone])}>

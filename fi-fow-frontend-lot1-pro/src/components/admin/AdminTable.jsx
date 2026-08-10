@@ -11,21 +11,21 @@ export default function AdminTable({ columns, rows, rowKey = 'id', rowLink, mobi
           <thead className="bg-slate-50 text-xs font-black uppercase text-fifow-secondary">
             <tr>
               {columns.map((column) => (
-                <th key={column.key} className={cn('whitespace-nowrap border-b border-fifow-border px-4 py-3', column.className)}>{column.label}</th>
+                <th key={column.key} className={cn('whitespace-nowrap border-b border-fifow-border px-3 py-2.5', column.className)}>{column.label}</th>
               ))}
-              {actions || rowLink ? <th className="w-16 border-b border-fifow-border px-4 py-3 text-right">Action</th> : null}
+              {actions || rowLink ? <th className="w-16 border-b border-fifow-border px-3 py-2.5 text-right">Action</th> : null}
             </tr>
           </thead>
           <tbody>
             {rows.map((row) => (
               <tr key={typeof rowKey === 'function' ? rowKey(row) : row[rowKey]} className="border-b border-fifow-border last:border-b-0 hover:bg-slate-50/70">
                 {columns.map((column) => (
-                  <td key={column.key} className={cn('px-4 py-3 align-middle font-semibold text-fifow-secondary', column.cellClassName)}>
+                  <td key={column.key} className={cn('px-3 py-2.5 align-middle font-semibold text-fifow-secondary', column.cellClassName)}>
                     {column.render ? column.render(row) : row[column.key]}
                   </td>
                 ))}
                 {actions || rowLink ? (
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-3 py-2.5 text-right">
                     {actions ? actions(row) : (
                       <Link to={rowLink(row)} aria-label="Ouvrir le détail" className="inline-grid h-9 w-9 place-items-center rounded-lg text-fifow-primary hover:bg-fifow-lavender">
                         <ChevronRight className="h-5 w-5" />
@@ -71,4 +71,3 @@ export default function AdminTable({ columns, rows, rowKey = 'id', rowLink, mobi
     </div>
   )
 }
-

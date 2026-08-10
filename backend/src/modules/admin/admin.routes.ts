@@ -7,7 +7,13 @@ import { validate } from '../../http/middlewares/validate.middleware.js';
 import { ApiError } from '../../shared/errors/api-error.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
 import { sendSuccess } from '../../shared/http/api-response.js';
-import { emitToUser } from '../../shared/realtime.js';
+import {
+  emitBoostUpdated,
+  emitOrderUpdated,
+  emitPaymentUpdated,
+  emitPayoutUpdated,
+  emitToUser
+} from '../../shared/realtime.js';
 import { getStorage } from '../../shared/storage/storage.service.js';
 import { authenticate, requireRole } from '../auth/auth.middleware.js';
 import { paymentService } from '../payments/payment.service.js';
@@ -34,6 +40,16 @@ const listSchema = z.object({
     limit: z.coerce.number().int().min(1).max(100).default(30),
     search: z.string().trim().max(100).optional(),
     status: z.string().max(50).optional()
+  })
+});
+const adminLogListSchema = z.object({
+  body: emptyBody,
+  params: z.object({}),
+  query: z.object({
+    cursor: uuid.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(40),
+    search: z.string().trim().min(1).max(100).optional(),
+    targetType: z.string().trim().min(1).max(80).optional()
   })
 });
 const resolveSchema = z.object({
@@ -96,6 +112,18 @@ const refundSchema = z.object({
   params: z.object({ id: uuid }),
   query: z.object({})
 });
+const sandboxOutcomeSchema = z.object({
+  body: z.object({
+    outcome: z.enum(['SUCCEEDED', 'FAILED']),
+    failureReason: z.string().trim().min(3).max(800).optional()
+  }).superRefine((body, context) => {
+    if (body.outcome === 'FAILED' && !body.failureReason) {
+      context.addIssue({ code: z.ZodIssueCode.custom, path: ['failureReason'], message: 'Le motif d échec est obligatoire.' });
+    }
+  }),
+  params: z.object({ id: uuid }),
+  query: z.object({})
+});
 const boostPlanSchema = z.object({
   body: z.object({
     name: z.string().trim().min(2).max(80),
@@ -107,6 +135,16 @@ const boostPlanSchema = z.object({
   params: z.object({}),
   query: z.object({})
 });
+const boostPlanListSchema = z.object({
+  body: emptyBody,
+  params: z.object({}),
+  query: z.object({
+    cursor: uuid.optional(),
+    limit: z.coerce.number().int().min(1).max(100).default(30),
+    search: z.string().trim().min(1).max(100).optional(),
+    status: z.enum(['active', 'archived']).optional()
+  })
+});
 const updateBoostPlanSchema = z.object({
   body: boostPlanSchema.shape.body.partial().refine((body) => Object.keys(body).length > 0),
   params: z.object({ id: uuid }),
@@ -117,15 +155,6 @@ const cancelBoostSchema = z.object({
   params: z.object({ id: uuid }),
   query: z.object({})
 });
-const sandboxOutcomeSchema = z.object({
-  body: z.object({
-    outcome: z.enum(['SUCCEEDED', 'FAILED']).default('SUCCEEDED'),
-    failureReason: z.string().trim().min(3).max(800).optional()
-  }).strict().default({ outcome: 'SUCCEEDED' }),
-  params: z.object({ id: uuid }),
-  query: z.object({})
-});
-
 const moderationTargetByAction: Record<string, 'PRODUCT' | 'USER' | 'REVIEW' | 'CONVERSATION'> = {
   WARNING: 'USER',
   HIDE_PRODUCT: 'PRODUCT',
@@ -794,11 +823,85 @@ adminRoutes.get('/products', validate(listSchema), asyncHandler(async (request, 
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: query.limit + 1,
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
-    include: { seller: { select: { id: true, fullName: true, email: true } }, images: { where: { archivedAt: null }, take: 1 } }
+    include: {
+      seller: { select: { id: true, fullName: true, email: true } },
+      images: {
+        where: { archivedAt: null },
+        orderBy: [{ isMain: 'desc' }, { sortOrder: 'asc' }],
+        take: 1,
+        select: { id: true, storageKey: true, width: true, height: true, isMain: true, sortOrder: true }
+      }
+    }
+  });
+  const more = rows.length > query.limit;
+  const page = more ? rows.slice(0, query.limit) : rows;
+  const data = page.map(({ images, ...product }) => {
+    const image = images[0];
+    return {
+      ...product,
+      mainImage: image ? {
+        id: image.id,
+        url: getStorage().publicUrl(image.storageKey),
+        width: image.width,
+        height: image.height,
+        isMain: image.isMain,
+        sortOrder: image.sortOrder
+      } : null
+    };
+  });
+  return sendSuccess(response, { data, meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
+}));
+
+adminRoutes.get('/orders', validate(listSchema), asyncHandler(async (request, response) => {
+  const { query } = request.validated as { query: { cursor?: string; limit: number; search?: string; status?: string } };
+  const allowedStatuses = [
+    'AWAITING_SELLER_CONFIRMATION', 'AWAITING_PAYMENT', 'PAID', 'RESERVED', 'PREPARING',
+    'READY_FOR_HANDOVER', 'IN_DELIVERY', 'RECEIVED', 'COMPLETED', 'CANCELLED', 'DISPUTED', 'REFUNDED'
+  ];
+  const rows = await prisma.order.findMany({
+    where: {
+      ...(query.status && allowedStatuses.includes(query.status) ? { status: query.status as never } : {}),
+      ...(query.search ? {
+        OR: [
+          { reference: { contains: query.search, mode: 'insensitive' } },
+          { buyer: { fullName: { contains: query.search, mode: 'insensitive' } } },
+          { buyer: { email: { contains: query.search, mode: 'insensitive' } } },
+          { seller: { fullName: { contains: query.search, mode: 'insensitive' } } },
+          { seller: { email: { contains: query.search, mode: 'insensitive' } } }
+        ]
+      } : {})
+    },
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    select: {
+      id: true, reference: true, status: true, handoverMode: true, totalAmount: true, currency: true, createdAt: true,
+      product: { select: { id: true, title: true } },
+      buyer: { select: { id: true, fullName: true, email: true } },
+      seller: { select: { id: true, fullName: true, email: true } },
+      productSnapshot: true, buyerSnapshot: true, sellerSnapshot: true
+    }
   });
   const more = rows.length > query.limit;
   const page = more ? rows.slice(0, query.limit) : rows;
   return sendSuccess(response, { data: page, meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
+}));
+
+adminRoutes.get('/orders/:id', validate(idSchema), asyncHandler(async (request, response) => {
+  const { params } = request.validated as { params: { id: string } };
+  const order = await prisma.order.findUnique({
+    where: { id: params.id },
+    include: {
+      product: { select: { id: true, title: true, slug: true } },
+      buyer: { select: { id: true, fullName: true, email: true, phone: true } },
+      seller: { select: { id: true, fullName: true, email: true, phone: true } },
+      statusHistory: { orderBy: { createdAt: 'desc' }, select: { id: true, actorType: true, toStatus: true, reason: true, createdAt: true } },
+      payments: { orderBy: { createdAt: 'desc' }, select: { id: true, internalReference: true, status: true, amount: true, currency: true, createdAt: true } },
+      delivery: { select: { status: true, pickupLocation: true, addressSnapshot: true, trackingReference: true } }
+    }
+  });
+  if (!order) throw new ApiError(404, 'Commande introuvable.', 'ORDER_NOT_FOUND');
+  return sendSuccess(response, { data: order });
 }));
 
 adminRoutes.get('/payments', validate(listSchema), asyncHandler(async (request, response) => {
@@ -945,9 +1048,45 @@ adminRoutes.post(
   })
 );
 
-adminRoutes.get('/logs', validate(listSchema), asyncHandler(async (request, response) => {
-  const { query } = request.validated as { query: { cursor?: string; limit: number } };
+adminRoutes.post('/payouts/:id/sandbox-confirm', requireRole('ADMIN', 'SUPER_ADMIN'), validate(sandboxOutcomeSchema), asyncHandler(async (request, response) => {
+  const { params, body } = request.validated as {
+    params: { id: string };
+    body: { outcome: 'SUCCEEDED' | 'FAILED'; failureReason?: string };
+  };
+  const payout = await paymentService.mockConfirmPayout(params.id, body.outcome, body.failureReason);
+  await prisma.$transaction((tx) => audit(
+    tx,
+    request,
+    `PAYOUT_SANDBOX_${body.outcome}`,
+    'PAYOUT',
+    params.id,
+    undefined,
+    { status: body.outcome },
+    body.failureReason
+  ));
+  return sendSuccess(response, {
+    data: payout,
+    message: body.outcome === 'SUCCEEDED' ? 'Reversement de test confirmé.' : 'Échec de test enregistré.'
+  });
+}));
+
+adminRoutes.get('/logs', validate(adminLogListSchema), asyncHandler(async (request, response) => {
+  const { query } = request.validated as {
+    query: { cursor?: string; limit: number; search?: string; targetType?: string };
+  };
+  const includeDiagnostics = request.auth!.role === 'SUPER_ADMIN';
   const rows = await prisma.adminLog.findMany({
+    where: {
+      ...(query.targetType ? { targetType: query.targetType } : {}),
+      ...(query.search ? {
+        OR: [
+          { action: { contains: query.search, mode: 'insensitive' } },
+          { targetType: { contains: query.search, mode: 'insensitive' } },
+          { note: { contains: query.search, mode: 'insensitive' } },
+          { actor: { fullName: { contains: query.search, mode: 'insensitive' } } }
+        ]
+      } : {})
+    },
     orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
     take: query.limit + 1,
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
@@ -955,12 +1094,26 @@ adminRoutes.get('/logs', validate(listSchema), asyncHandler(async (request, resp
   });
   const more = rows.length > query.limit;
   const page = more ? rows.slice(0, query.limit) : rows;
-  return sendSuccess(response, { data: page, meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
+  const data = page.map((row) => {
+    if (includeDiagnostics) return { ...row, diagnosticsAvailable: true };
+    return {
+      id: row.id,
+      actorId: row.actorId,
+      action: row.action,
+      targetType: row.targetType,
+      targetId: null,
+      note: row.note,
+      createdAt: row.createdAt,
+      actor: row.actor,
+      diagnosticsAvailable: false
+    };
+  });
+  return sendSuccess(response, { data, meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
 }));
 
 adminRoutes.post('/payments/:id/refunds', requireRole('ADMIN', 'SUPER_ADMIN'), validate(refundSchema), asyncHandler(async (request, response) => {
   const { params, body } = request.validated as { params: { id: string }; body: { reason: string; amount?: string } };
-  const refund = await prisma.$transaction(async (tx) => {
+  const result = await prisma.$transaction(async (tx) => {
     const payment = await tx.payment.findUnique({ where: { id: params.id }, include: { order: true } });
     if (!payment || payment.status !== 'SUCCEEDED' || !payment.order) throw new ApiError(409, 'Paiement non remboursable.', 'PAYMENT_NOT_REFUNDABLE');
     const amount = body.amount ? BigInt(body.amount) : payment.amount;
@@ -981,9 +1134,97 @@ adminRoutes.post('/payments/:id/refunds', requireRole('ADMIN', 'SUPER_ADMIN'), v
     await tx.order.update({ where: { id: payment.order.id }, data: { status: 'DISPUTED', disputedAt: new Date(), disputeReason: body.reason } });
     await tx.payout.updateMany({ where: { orderId: payment.order.id }, data: { status: 'BLOCKED', availableAt: null } });
     await audit(tx, request, 'REFUND_REQUESTED', 'PAYMENT', payment.id, undefined, { refundId: row.id, amount: amount.toString() }, body.reason);
-    return row;
+    const notification = await createNotification({
+      userId: payment.userId,
+      type: 'REFUND_UPDATED',
+      title: 'Remboursement en cours',
+      body: 'Une demande de remboursement est en cours de traitement pour cette transaction.',
+      data: { refundId: row.id, paymentId: payment.id, orderId: payment.order.id }
+    }, tx);
+    return { refund: row, notification };
   });
+  const refund = result.refund;
+  emitToUser(result.notification.userId, 'notification:new', result.notification);
+  const payment = await prisma.payment.findUnique({
+    where: { id: params.id },
+    select: {
+      id: true,
+      status: true,
+      userId: true,
+      orderId: true,
+      updatedAt: true,
+      order: { select: { id: true, status: true, buyerId: true, sellerId: true, updatedAt: true } }
+    }
+  });
+  if (payment) {
+    emitPaymentUpdated(payment);
+    if (payment.order) {
+      emitOrderUpdated(payment.order);
+      const payout = await prisma.payout.findUnique({
+        where: { orderId: payment.order.id },
+        select: { id: true, status: true, sellerId: true, orderId: true, updatedAt: true }
+      });
+      if (payout) emitPayoutUpdated(payout);
+    }
+  }
   return sendSuccess(response, { statusCode: 201, data: refund, message: 'Remboursement demandé au fournisseur.' });
+}));
+
+adminRoutes.post('/payments/:id/refunds/sandbox-confirm', requireRole('ADMIN', 'SUPER_ADMIN'), validate(sandboxOutcomeSchema), asyncHandler(async (request, response) => {
+  const { params, body } = request.validated as {
+    params: { id: string };
+    body: { outcome: 'SUCCEEDED' | 'FAILED'; failureReason?: string };
+  };
+  const refund = await prisma.refund.findFirst({
+    where: { paymentId: params.id, status: { in: ['REQUESTED', 'PROCESSING'] } },
+    orderBy: { createdAt: 'desc' },
+    select: { id: true }
+  });
+  if (!refund) throw new ApiError(404, 'Remboursement testable introuvable.', 'REFUND_NOT_FOUND');
+  const confirmedRefund = await paymentService.mockConfirmRefund(refund.id, body.outcome, body.failureReason);
+  await prisma.$transaction((tx) => audit(
+    tx,
+    request,
+    `REFUND_SANDBOX_${body.outcome}`,
+    'REFUND',
+    refund.id,
+    undefined,
+    { status: body.outcome, paymentId: params.id },
+    body.failureReason
+  ));
+  return sendSuccess(response, {
+    data: confirmedRefund,
+    message: body.outcome === 'SUCCEEDED' ? 'Remboursement de test confirmé.' : 'Échec de test enregistré.'
+  });
+}));
+
+adminRoutes.get('/boost-plans', requireRole('ADMIN', 'SUPER_ADMIN'), validate(boostPlanListSchema), asyncHandler(async (request, response) => {
+  const { query } = request.validated as { query: z.infer<typeof boostPlanListSchema>['query'] };
+  const where: Prisma.BoostPlanWhereInput = {
+    ...(query.status === 'active' ? { isActive: true, archivedAt: null } : {}),
+    ...(query.status === 'archived' ? { archivedAt: { not: null } } : {}),
+    ...(query.search
+      ? {
+          OR: [
+            { name: { contains: query.search, mode: 'insensitive' } },
+            { slug: { contains: query.search, mode: 'insensitive' } }
+          ]
+        }
+      : {})
+  };
+  const rows = await prisma.boostPlan.findMany({
+    where,
+    orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {})
+  });
+  const hasNextPage = rows.length > query.limit;
+  const data = hasNextPage ? rows.slice(0, query.limit) : rows;
+  return sendSuccess(response, {
+    data,
+    meta: { nextCursor: hasNextPage ? data.at(-1)?.id ?? null : null },
+    message: 'Formules de boost chargées.'
+  });
 }));
 
 adminRoutes.post('/boost-plans', requireRole('ADMIN', 'SUPER_ADMIN'), validate(boostPlanSchema), asyncHandler(async (request, response) => {
@@ -1030,7 +1271,7 @@ adminRoutes.patch('/boosts/:id/cancel', requireRole('ADMIN', 'SUPER_ADMIN'), val
     params: { id: string };
     body: { reason: string };
   };
-  const result = await prisma.$transaction(async (tx) => {
+  const transaction = await prisma.$transaction(async (tx) => {
     const boost = await tx.boost.findUnique({
       where: { id: params.id },
       include: { payment: true }
@@ -1066,7 +1307,24 @@ adminRoutes.patch('/boosts/:id/cancel', requireRole('ADMIN', 'SUPER_ADMIN'), val
       });
     }
     await audit(tx, request, 'BOOST_CANCELLED', 'BOOST', boost.id, undefined, { refundId }, body.reason);
-    return { boost: updated, refundId };
+    const notification = await createNotification({
+      userId: boost.sellerId,
+      type: 'SYSTEM',
+      title: 'Boost annule',
+      body: 'Votre boost a ete annule. Consultez le suivi de paiement pour la suite.',
+      data: { boostId: boost.id, ...(refundId ? { refundId } : {}) }
+    }, tx);
+    return { boost: updated, refundId, notification, paymentId: boost.payment?.id ?? null };
   });
+  emitBoostUpdated(transaction.boost);
+  emitToUser(transaction.notification.userId, 'notification:new', transaction.notification);
+  if (transaction.paymentId) {
+    const payment = await prisma.payment.findUnique({
+      where: { id: transaction.paymentId },
+      select: { id: true, status: true, userId: true, orderId: true, updatedAt: true }
+    });
+    if (payment) emitPaymentUpdated(payment);
+  }
+  const result = { boost: transaction.boost, refundId: transaction.refundId };
   return sendSuccess(response, { data: result, message: 'Boost annulé.' });
 }));

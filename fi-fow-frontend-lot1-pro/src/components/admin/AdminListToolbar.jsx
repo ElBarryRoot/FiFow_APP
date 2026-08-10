@@ -9,9 +9,11 @@ export default function AdminListToolbar({
   status,
   onStatusChange,
   statusOptions = [],
+  hasAdditionalFilters = false,
+  onClearAdditionalFilters,
   children,
 }) {
-  const hasFilters = Boolean(search || status)
+  const hasFilters = Boolean(search || status || hasAdditionalFilters)
 
   return (
     <div className="mb-4 flex flex-col gap-3 rounded-lg border border-fifow-border bg-white p-3 sm:flex-row sm:items-center">
@@ -40,6 +42,7 @@ export default function AdminListToolbar({
           onClick={() => {
             onSearchChange?.('')
             onStatusChange?.('')
+            onClearAdditionalFilters?.()
           }}
           className="inline-flex h-11 items-center justify-center gap-2 rounded-lg px-3 text-sm font-extrabold text-fifow-secondary hover:bg-slate-100"
         >
@@ -49,4 +52,3 @@ export default function AdminListToolbar({
     </div>
   )
 }
-

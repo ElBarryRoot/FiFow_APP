@@ -59,5 +59,5 @@ function ProductActions({ row, onAction }) {
   if (['HIDDEN', 'ARCHIVED', 'REJECTED'].includes(row.status)) return <Button type="button" size="sm" variant="secondary" icon={RotateCcw} onClick={() => onAction({ row, action: 'RESTORE_PRODUCT' })}>Restaurer</Button>
   return <div className="flex justify-end gap-2"><Button type="button" size="sm" variant="secondary" icon={EyeOff} onClick={() => onAction({ row, action: 'HIDE_PRODUCT' })}>Masquer</Button><Button type="button" size="sm" variant="danger" icon={Archive} onClick={() => onAction({ row, action: 'ARCHIVE_PRODUCT' })}>Archiver</Button></div>
 }
-function productImage(row) { return row.mainImageUrl || row.images?.[0]?.url || row.images?.[0]?.publicUrl || '/assets/empty-product.svg' }
+function productImage(row) { return row.mainImage?.url || row.mainImageUrl || row.images?.[0]?.url || row.images?.[0]?.publicUrl || '/assets/empty-product.svg' }
 function productActionTitle(action) { return ({ HIDE_PRODUCT: 'Masquer cette annonce', ARCHIVE_PRODUCT: 'Archiver cette annonce', RESTORE_PRODUCT: 'Restaurer cette annonce' })[action] || 'Modifier cette annonce' }

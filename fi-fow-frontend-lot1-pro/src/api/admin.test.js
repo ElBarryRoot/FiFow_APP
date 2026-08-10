@@ -65,4 +65,21 @@ describe('contrats API administration', () => {
     }])
     expect(apiRequest.mock.calls[1]).toEqual(['/admin/boost-plans?status=active&limit=20', { auth: 'required' }])
   })
+
+  it('transmet les filtres lisibles de l historique des actions', async () => {
+    apiRequest.mockResolvedValue({ data: [{ id: 'log-1' }], meta: { nextCursor: null } })
+
+    await expect(adminApi.logs.list({
+      search: 'remboursement',
+      targetType: 'PAYMENT',
+      limit: 40,
+    })).resolves.toEqual({
+      items: [{ id: 'log-1' }],
+      nextCursor: null,
+    })
+
+    expect(apiRequest).toHaveBeenCalledWith('/admin/logs?search=remboursement&targetType=PAYMENT&limit=40', {
+      auth: 'required',
+    })
+  })
 })
