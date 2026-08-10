@@ -1,7 +1,7 @@
 import { logger } from '../config/logger.js';
 import { prisma } from '../config/prisma.js';
 import { createNotification } from '../modules/notifications/notification.service.js';
-import { emitToUser } from './realtime.js';
+import { emitBoostUpdated, emitOrderUpdated, emitToUser } from './realtime.js';
 
 let timer: NodeJS.Timeout | null = null;
 let running = false;
@@ -57,7 +57,7 @@ async function runMaintenance() {
           select: { id: true }
         });
         if (activePayment) return null;
-        await tx.order.update({
+        const updatedOrder = await tx.order.update({
           where: { id: order.id },
           data: {
             status: 'CANCELLED',
@@ -95,9 +95,12 @@ async function runMaintenance() {
             data: { orderId: order.id }
           }, tx)
         ]);
-        return notifications;
+        return { order: updatedOrder, notifications };
       });
-      result?.forEach((notification) => emitToUser(notification.userId, 'notification:new', notification));
+      if (result) {
+        emitOrderUpdated(result.order);
+        result.notifications.forEach((notification) => emitToUser(notification.userId, 'notification:new', notification));
+      }
     }
 
     const expiredBoosts = await prisma.boost.findMany({
@@ -105,13 +108,13 @@ async function runMaintenance() {
       select: { id: true, sellerId: true, productId: true }
     });
     for (const boost of expiredBoosts) {
-      await prisma.$transaction(async (tx) => {
+      const notification = await prisma.$transaction(async (tx) => {
         const updated = await tx.boost.updateMany({
           where: { id: boost.id, status: 'ACTIVE' },
           data: { status: 'EXPIRED' }
         });
-        if (updated.count) {
-          await createNotification(
+        if (!updated.count) return null;
+        return createNotification(
             {
               userId: boost.sellerId,
               type: 'BOOST_EXPIRED',
@@ -121,8 +124,15 @@ async function runMaintenance() {
             },
             tx
           );
-        }
       });
+      if (notification) {
+        emitToUser(notification.userId, 'notification:new', notification);
+        const updatedBoost = await prisma.boost.findUnique({
+          where: { id: boost.id },
+          select: { id: true, status: true, sellerId: true, productId: true, updatedAt: true }
+        });
+        if (updatedBoost) emitBoostUpdated(updatedBoost);
+      }
     }
 
     const retention = new Date(now.getTime() - 30 * 24 * 60 * 60_000);

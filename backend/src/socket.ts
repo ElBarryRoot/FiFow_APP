@@ -36,6 +36,12 @@ type SocketServerConstructor = new (
   options: Record<string, unknown>
 ) => SocketServer;
 
+const staffRoles = new Set(['MODERATOR', 'ADMIN', 'SUPER_ADMIN']);
+
+function isStaffRole(role: unknown) {
+  return typeof role === 'string' && staffRoles.has(role);
+}
+
 function conversationPayload(payload: unknown) {
   if (!payload || typeof payload !== 'object' || !('conversationId' in payload)) return null;
   const conversationId = String(payload.conversationId);
@@ -90,12 +96,13 @@ export async function initializeSocket(server: HttpServer) {
           expiresAt: { gt: new Date() },
           user: { status: 'ACTIVE' }
         },
-        select: { id: true }
+        select: { id: true, user: { select: { role: true } } }
       });
       if (!session) return next(new Error('SESSION_NOT_AVAILABLE'));
       socket.data['userId'] = claims.userId;
       socket.data['sessionId'] = claims.sessionId;
       socket.data['accessExpiresAt'] = claims.expiresAt;
+      socket.data['role'] = session.user.role;
       return next();
     } catch {
       return next(new Error('INVALID_TOKEN'));
@@ -105,6 +112,10 @@ export async function initializeSocket(server: HttpServer) {
     const userId = socket.data['userId'] as string;
     const sessionId = socket.data['sessionId'] as string;
     const accessExpiresAt = socket.data['accessExpiresAt'] as number;
+    const syncStaffRoom = async (role: unknown) => {
+      await socket.leave('role:staff');
+      if (isStaffRole(role)) await socket.join('role:staff');
+    };
     const joinedConversations = new Set<string>();
     let lastTypingAt = 0;
     const expiryTimer = setTimeout(
@@ -114,15 +125,26 @@ export async function initializeSocket(server: HttpServer) {
     const sessionAudit = setInterval(async () => {
       try {
         const session = await prisma.session.findFirst({
-          where: { id: sessionId, userId, revokedAt: null, expiresAt: { gt: new Date() } },
-          select: { id: true }
+          where: {
+            id: sessionId,
+            userId,
+            revokedAt: null,
+            expiresAt: { gt: new Date() },
+            user: { status: 'ACTIVE' }
+          },
+          select: { id: true, user: { select: { role: true } } }
         });
         if (!session) socket.disconnect(true);
+        if (session && session.user.role !== socket.data['role']) {
+          socket.data['role'] = session.user.role;
+          await syncStaffRoom(session.user.role);
+        }
       } catch {
         socket.disconnect(true);
       }
     }, 60_000);
     void socket.join(`user:${userId}`);
+    void syncStaffRoom(socket.data['role']);
     socket.on('conversation:join', async (payload, callback) => {
       try {
         const parsed = conversationPayload(payload);

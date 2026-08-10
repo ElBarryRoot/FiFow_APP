@@ -1,8 +1,14 @@
 import { createHmac, randomBytes, randomUUID } from 'node:crypto';
-import type { PaymentProvider, Prisma } from '@prisma/client';
+import { Prisma, type PaymentProvider } from '@prisma/client';
 import { env } from '../../config/env.js';
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../shared/errors/api-error.js';
+import {
+  emitBoostUpdated,
+  emitOrderUpdated,
+  emitPaymentUpdated,
+  emitPayoutUpdated
+} from '../../shared/realtime.js';
 import { createNotification } from '../notifications/notification.service.js';
 import { verifyWebhookSignature } from './webhook-signature.js';
 
@@ -21,6 +27,57 @@ function serialize<T>(value: T) {
   return JSON.parse(
     JSON.stringify(value, (_key, item) => (typeof item === 'bigint' ? item.toString() : item))
   ) as unknown;
+}
+
+async function emitPaymentCommerceUpdates(paymentId: string) {
+  const payment = await prisma.payment.findUnique({
+    where: { id: paymentId },
+    select: {
+      id: true,
+      status: true,
+      userId: true,
+      orderId: true,
+      updatedAt: true,
+      order: {
+        select: {
+          id: true,
+          status: true,
+          buyerId: true,
+          sellerId: true,
+          updatedAt: true
+        }
+      },
+      boost: {
+        select: {
+          id: true,
+          status: true,
+          sellerId: true,
+          productId: true,
+          updatedAt: true
+        }
+      }
+    }
+  });
+  if (!payment) return;
+
+  emitPaymentUpdated(payment);
+  if (payment.order) {
+    emitOrderUpdated(payment.order);
+    const payout = await prisma.payout.findUnique({
+      where: { orderId: payment.order.id },
+      select: { id: true, status: true, sellerId: true, orderId: true, updatedAt: true }
+    });
+    if (payout) emitPayoutUpdated(payout);
+  }
+  if (payment.boost) emitBoostUpdated(payment.boost);
+}
+
+async function emitPayoutUpdate(payoutId: string) {
+  const payout = await prisma.payout.findUnique({
+    where: { id: payoutId },
+    select: { id: true, status: true, sellerId: true, orderId: true, updatedAt: true }
+  });
+  if (payout) emitPayoutUpdated(payout);
 }
 
 export const paymentService = {
@@ -88,6 +145,7 @@ export const paymentService = {
           }
         });
       });
+      emitPaymentUpdated(payment);
       return serialize({
         ...payment,
         sandbox: env.PAYMENT_SANDBOX_ENABLED,
@@ -254,6 +312,7 @@ export const paymentService = {
         }
       });
     });
+    emitPayoutUpdated(payout);
     return serialize({
       ...payout,
       initiationMode: 'test',
@@ -416,6 +475,9 @@ export const paymentService = {
         data: { refundId: refund.id, paymentId: refund.paymentId }
       }, tx);
     });
+    if (transactionResult !== 'duplicate' && transactionResult !== 'ignored') {
+      await emitPaymentCommerceUpdates(targetRefundPaymentId);
+    }
     return {
       duplicate: transactionResult === 'duplicate',
       ignored: transactionResult === 'ignored'
@@ -673,6 +735,7 @@ export const paymentService = {
         tx
       );
     });
+    if (transactionResult !== 'duplicate') await emitPaymentCommerceUpdates(targetPaymentId);
     return { duplicate: transactionResult === 'duplicate' };
   },
 
@@ -710,12 +773,12 @@ export const paymentService = {
     }
     if (payout.status === 'SUCCEEDED') return { duplicate: true };
 
-    await prisma.$transaction(async (tx) => {
+    const transactionResult = await prisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT id FROM payouts WHERE id = ${payout.id}::uuid FOR UPDATE`;
       const locked = await tx.payout.findUnique({ where: { id: payout.id } });
       if (!locked) throw new ApiError(404, 'Reversement introuvable.', 'PAYOUT_NOT_FOUND');
       if (locked.providerEventId === input.payload.providerEventId || locked.status === 'SUCCEEDED') {
-        return;
+        return 'duplicate' as const;
       }
       if (locked.status !== 'PROCESSING') {
         throw new ApiError(409, 'Reversement non traitable.', 'PAYOUT_NOT_PROCESSING');
@@ -745,7 +808,7 @@ export const paymentService = {
           },
           tx
         );
-        return;
+        return 'processed' as const;
       }
 
       await tx.payout.update({
@@ -792,8 +855,10 @@ export const paymentService = {
         },
         tx
       );
+      return 'processed' as const;
     });
-    return { duplicate: false };
+    if (transactionResult === 'processed') await emitPayoutUpdate(payout.id);
+    return { duplicate: transactionResult === 'duplicate' };
   },
 
   async list(userId: string, cursor?: string, limit = 20) {

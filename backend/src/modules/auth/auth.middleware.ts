@@ -1,4 +1,5 @@
 import type { RequestHandler } from 'express';
+import { env } from '../../config/env.js';
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../shared/errors/api-error.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
@@ -55,6 +56,9 @@ export const optionalAuthenticate: RequestHandler = (request, response, next) =>
 
 export const requireVerifiedEmail: RequestHandler = (request, _response, next) => {
   if (!request.auth) return next(new ApiError(401, 'Authentification requise.', 'AUTH_REQUIRED'));
+  if (env.NODE_ENV !== 'production' && !request.auth.emailVerified) {
+    return next();
+  }
   if (!request.auth.emailVerified) {
     return next(new ApiError(403, 'Vérifiez votre adresse email pour continuer.', 'EMAIL_VERIFICATION_REQUIRED'));
   }

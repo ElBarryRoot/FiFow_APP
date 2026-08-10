@@ -202,7 +202,7 @@ export const supportService = {
         }, tx);
       }
     });
-    if (notification) emitToUser(notification.userId, 'notification:new', notification);
+    if (notification) emitToUser((notification as { userId: string }).userId, 'notification:new', notification);
     return hydrated(ticketId);
   },
 
@@ -238,7 +238,7 @@ export const supportService = {
       orderBy: [{ priority: 'desc' }, { updatedAt: 'desc' }, { id: 'desc' }],
       take: input.limit + 1,
       ...(input.cursor ? { cursor: { id: input.cursor }, skip: 1 } : {}),
-      include: detailInclude
+      include: listInclude
     });
     const more = rows.length > input.limit;
     const page = more ? rows.slice(0, input.limit) : rows;

@@ -7,6 +7,7 @@ import { sendSuccess } from '../../shared/http/api-response.js';
 import { validate } from '../../http/middlewares/validate.middleware.js';
 import { authenticate, requireVerifiedEmail } from '../auth/auth.middleware.js';
 import { createNotification } from '../notifications/notification.service.js';
+import { emitOrderUpdated } from '../../shared/realtime.js';
 import { orderService } from './order.service.js';
 import {
   createOrderSchema,
@@ -42,9 +43,11 @@ orderRoutes.post('/', validate(createOrderSchema), asyncHandler(async (req, res)
   if (!idempotencyKey || !z.string().min(16).max(120).safeParse(idempotencyKey).success) {
     throw new ApiError(400, 'Cle d idempotence requise.', 'IDEMPOTENCY_KEY_REQUIRED');
   }
+  const order = await orderService.create(req.auth!.userId, body, idempotencyKey);
+  emitOrderUpdated(order);
   return sendSuccess(res, {
     statusCode: 201,
-    data: await orderService.create(req.auth!.userId, body, idempotencyKey),
+    data: order,
     message: 'Commande creee.'
   });
 }));
@@ -87,6 +90,7 @@ orderRoutes.patch('/:orderId/seller-confirm', validate(orderIdSchema), asyncHand
     await createNotification({ userId: row.buyerId, type: 'ORDER_STATUS_CHANGED', title: 'Commande confirmée', body: 'Vous pouvez maintenant effectuer le paiement sécurisé.', data: { orderId: row.id } }, tx);
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Commande confirmée.' });
 }));
 orderRoutes.patch('/:orderId/cancel', validate(orderReasonSchema), asyncHandler(async (req, res) => {
@@ -107,6 +111,7 @@ orderRoutes.patch('/:orderId/cancel', validate(orderReasonSchema), asyncHandler(
     await tx.orderStatusHistory.create({ data: { orderId: row.id, actorId: req.auth!.userId, actorType: current.buyerId === req.auth!.userId ? 'BUYER' : 'SELLER', fromStatus: current.status, toStatus: 'CANCELLED', reason: body.reason } });
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Commande annulée.' });
 }));
 
@@ -129,6 +134,7 @@ orderRoutes.patch('/:orderId/prepare', validate(orderIdSchema), asyncHandler(asy
     await createNotification({ userId: row.buyerId, type: 'ORDER_STATUS_CHANGED', title: 'Commande en préparation', body: 'Le vendeur prépare votre commande.', data: { orderId: row.id } }, tx);
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Préparation confirmée.' });
 }));
 
@@ -155,6 +161,7 @@ orderRoutes.patch('/:orderId/ready', validate(orderIdSchema), asyncHandler(async
     await createNotification({ userId: row.buyerId, type: 'ORDER_STATUS_CHANGED', title: 'Commande prête', body: 'Votre commande est prête pour la remise.', data: { orderId: row.id } }, tx);
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Commande prête.' });
 }));
 
@@ -180,6 +187,7 @@ orderRoutes.patch('/:orderId/ship', validate(orderIdSchema), asyncHandler(async 
     });
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Expédition confirmée.' });
 }));
 
@@ -213,6 +221,7 @@ orderRoutes.patch('/:orderId/receive', validate(orderIdSchema), asyncHandler(asy
     await createNotification({ userId: row.sellerId, type: 'ORDER_STATUS_CHANGED', title: 'Réception confirmée', body: 'La vente est terminée. Votre versement est programmé.', data: { orderId: row.id } }, tx);
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Réception et vente confirmées.' });
 }));
 
@@ -238,5 +247,6 @@ orderRoutes.patch('/:orderId/dispute', validate(orderReasonSchema), asyncHandler
     });
     return row;
   });
+  emitOrderUpdated(updated);
   return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Litige ouvert. Le versement reste bloqué.' });
 }));

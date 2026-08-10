@@ -5,6 +5,9 @@ let accessToken = null
 let refreshPromise = null
 let sessionExpiredHandler = null
 
+const IDEMPOTENT_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+const RETRYABLE_STATUSES = new Set([408, 429, 500, 502, 503, 504])
+
 const sessionErrors = new Set([
   'INVALID_REFRESH_TOKEN',
   'REFRESH_TOKEN_REUSED',
@@ -62,6 +65,37 @@ async function parseResponse(response) {
   return response.json()
 }
 
+function createRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID()
+  return `req_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`
+}
+
+function sleep(ms, signal) {
+  if (signal?.aborted) return Promise.reject(signal.reason)
+  return new Promise((resolve, reject) => {
+    const timeoutId = window.setTimeout(resolve, ms)
+    const onAbort = () => {
+      window.clearTimeout(timeoutId)
+      reject(signal.reason)
+    }
+    signal?.addEventListener('abort', onAbort, { once: true })
+  })
+}
+
+function retryDelay(attempt, response) {
+  const retryAfter = response?.headers?.get?.('retry-after')
+  const retryAfterSeconds = Number(retryAfter)
+  if (Number.isFinite(retryAfterSeconds) && retryAfterSeconds > 0) return Math.min(retryAfterSeconds * 1000, 3000)
+  return Math.min(250 * (2 ** attempt), 1200) + Math.floor(Math.random() * 120)
+}
+
+function shouldRetry({ method, attempt, maxRetries, response, error, externalSignal }) {
+  if (attempt >= maxRetries || externalSignal?.aborted) return false
+  if (!IDEMPOTENT_METHODS.has(method.toUpperCase())) return false
+  if (response) return RETRYABLE_STATUSES.has(response.status)
+  return error?.status === 0 || RETRYABLE_STATUSES.has(error?.status)
+}
+
 async function execute(path, options = {}) {
   const {
     method = 'GET',
@@ -70,6 +104,7 @@ async function execute(path, options = {}) {
     signal: externalSignal,
     timeoutMs = 15_000,
     token = accessToken,
+    requestId = createRequestId(),
   } = options
   const headers = new Headers(providedHeaders)
   const isFormData = body instanceof FormData
@@ -79,6 +114,7 @@ async function execute(path, options = {}) {
   }
   if (token) headers.set('Authorization', `Bearer ${token}`)
   headers.set('Accept', 'application/json')
+  headers.set('X-Request-Id', requestId)
 
   const requestSignal = createRequestSignal(externalSignal, timeoutMs)
   try {
@@ -135,13 +171,25 @@ export async function refreshAccessToken({ notify = true } = {}) {
 
 export async function apiRequest(path, options = {}) {
   const { auth = 'optional', retryAuth = true, ...requestOptions } = options
-  try {
-    return await execute(path, requestOptions)
-  } catch (error) {
-    const canRefresh = error.status === 401 && auth !== 'none' && retryAuth && !path.startsWith('/auth/refresh')
-    if (!canRefresh) throw error
-    await refreshAccessToken()
-    return execute(path, requestOptions)
+  const method = requestOptions.method || 'GET'
+  const maxRetries = requestOptions.retry ?? (method.toUpperCase() === 'GET' ? 1 : 0)
+  const requestId = requestOptions.requestId || createRequestId()
+
+  for (let attempt = 0; attempt <= maxRetries; attempt += 1) {
+    try {
+      return await execute(path, { ...requestOptions, requestId, retry: 0 })
+    } catch (error) {
+      const canRefresh = error.status === 401 && auth !== 'none' && retryAuth && !path.startsWith('/auth/refresh')
+      if (canRefresh) {
+        await refreshAccessToken()
+        return execute(path, { ...requestOptions, requestId, retry: 0 })
+      }
+      if (shouldRetry({ method, attempt, maxRetries, error, externalSignal: requestOptions.signal })) {
+        await sleep(retryDelay(attempt), requestOptions.signal)
+        continue
+      }
+      throw error
+    }
   }
 }
 
@@ -154,4 +202,3 @@ export function buildSearchParams(values) {
   const query = params.toString()
   return query ? `?${query}` : ''
 }
-

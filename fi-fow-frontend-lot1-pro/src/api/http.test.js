@@ -51,6 +51,7 @@ describe('client HTTP', () => {
     expect(options.headers.get('Accept')).toBe('application/json')
     expect(options.headers.get('Content-Type')).toBe('application/json')
     expect(options.headers.get('Authorization')).toBe('Bearer access-token')
+    expect(options.headers.get('X-Request-Id')).toMatch(/^req_|[0-9a-f-]{20,}/)
   })
 
   it('normalise les erreurs metier du backend', async () => {
@@ -159,5 +160,33 @@ describe('client HTTP', () => {
       nullable: null,
     })).toBe('?query=iphone+15&page=0&boosted=false')
     expect(buildSearchParams({})).toBe('')
+  })
+
+  it('relance une lecture idempotente une seule fois apres une erreur reseau', async () => {
+    fetch
+      .mockRejectedValueOnce(new TypeError('network down'))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: { items: [] } }))
+
+    const result = await apiRequest('/products')
+
+    expect(result.data).toEqual({ items: [] })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const firstRequestId = fetch.mock.calls[0][1].headers.get('X-Request-Id')
+    const secondRequestId = fetch.mock.calls[1][1].headers.get('X-Request-Id')
+    expect(secondRequestId).toBe(firstRequestId)
+  })
+
+  it('relance une lecture idempotente apres une indisponibilite temporaire du serveur', async () => {
+    fetch
+      .mockResolvedValueOnce(jsonResponse({ success: false, message: 'Service temporairement indisponible.' }, 503))
+      .mockResolvedValueOnce(jsonResponse({ success: true, data: { items: ['product-1'] } }))
+
+    const result = await apiRequest('/products')
+
+    expect(result.data).toEqual({ items: ['product-1'] })
+    expect(fetch).toHaveBeenCalledTimes(2)
+    const firstRequestId = fetch.mock.calls[0][1].headers.get('X-Request-Id')
+    const secondRequestId = fetch.mock.calls[1][1].headers.get('X-Request-Id')
+    expect(secondRequestId).toBe(firstRequestId)
   })
 })
