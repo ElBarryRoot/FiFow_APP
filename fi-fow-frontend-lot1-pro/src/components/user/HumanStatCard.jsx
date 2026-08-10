@@ -10,7 +10,7 @@ export default function HumanStatCard({ label, value, helper, tone = 'violet' })
 
   return (
     <Card className={`bg-gradient-to-br ${tones[tone]} p-4`}>
-      <p className="text-3xl font-black tracking-[-0.05em]">{value}</p>
+      <p className="text-2xl font-black">{value}</p>
       <p className="mt-1 text-sm font-black text-fifow-dark">{label}</p>
       {helper ? <p className="mt-1 text-xs font-bold text-fifow-secondary">{helper}</p> : null}
     </Card>

@@ -1,7 +1,6 @@
 import Button from '../../components/ui/Button.jsx'
 import Card from '../../components/ui/Card.jsx'
 import CompactProductRow from '../../components/user/CompactProductRow.jsx'
-import HumanSectionHeader from '../../components/user/HumanSectionHeader.jsx'
 import HumanTrustPanel from '../../components/user/HumanTrustPanel.jsx'
 import UserPageShell from '../../components/user/UserPageShell.jsx'
 import { useFavorites } from '../../lib/favorites.jsx'
@@ -12,7 +11,6 @@ export default function Favorites() {
     <UserPageShell title="Favoris" eyebrow="Votre sélection" subtitle="Les annonces que vous surveillez avant de discuter, négocier ou acheter.">
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section>
-          <HumanSectionHeader eyebrow="À revoir" title="Produits gardés de côté" description="Comparez les vendeurs, les quartiers et les conditions avant de lancer la discussion." />
           {favorites.loading ? <div className="grid gap-4 xl:grid-cols-2">{Array.from({ length: 4 }, (_, index) => <div key={index} className="h-48 animate-pulse rounded-lg bg-slate-100" />)}</div> : null}
           {favorites.error ? <Card className="p-6 text-center"><p className="font-bold text-fifow-red">Vos favoris sont momentanément indisponibles.</p><Button onClick={() => favorites.refetch()} className="mt-4">Réessayer</Button></Card> : null}
           {!favorites.loading && !favorites.error ? <div className="grid gap-4 xl:grid-cols-2">{favorites.products.map((item) => <CompactProductRow key={item.id} item={item} />)}</div> : null}

@@ -8,7 +8,6 @@ import Button from '../../components/ui/Button.jsx'
 import Card from '../../components/ui/Card.jsx'
 import UserPageShell from '../../components/user/UserPageShell.jsx'
 import ListingManagementCard from '../../components/user/ListingManagementCard.jsx'
-import HumanSectionHeader from '../../components/user/HumanSectionHeader.jsx'
 import HumanTrustPanel from '../../components/user/HumanTrustPanel.jsx'
 import { useToast } from '../../lib/toast.jsx'
 
@@ -33,7 +32,6 @@ export default function MyListings() {
     <UserPageShell title="Mes annonces" eyebrow="Espace vendeur" subtitle="Suivez la visibilité et l’état réel de chacune de vos annonces." actions={<div className="flex flex-wrap gap-2"><Button as={Link} to="/profile/boosts" variant="secondary" size="sm" icon={Rocket}>Boosts</Button><Button as={Link} to="/products/new" size="sm" icon={Plus}>Publier</Button></div>}>
       <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
         <section className="space-y-5">
-          <HumanSectionHeader eyebrow="Vos produits" title="Annonces et brouillons" description="Les actions disponibles dépendent de l’état contrôlé par Fi Fow." />
           {listingsQuery.isLoading ? <ListingsSkeleton /> : null}
           {listingsQuery.isError ? <Card className="p-6 text-center"><p className="font-bold text-fifow-red">Vos annonces ne peuvent pas être chargées.</p><Button className="mt-4" onClick={() => listingsQuery.refetch()}>Réessayer</Button></Card> : null}
           {listingsQuery.data?.map((listing) => <ListingManagementCard key={listing.id} listing={listing} onArchive={archive} archiving={archiveMutation.isPending && archiveMutation.variables === listing.id} />)}
