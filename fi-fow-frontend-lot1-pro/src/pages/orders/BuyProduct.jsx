@@ -158,8 +158,8 @@ export default function BuyProduct() {
     <CommerceShell onBack={() => navigate(-1)}>
       <div className="mb-6">
         <p className="text-xs font-black uppercase text-fifow-primary">Achat sécurisé</p>
-        <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">Confirmer les conditions de remise</h1>
-        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">Le devis Fi Fow calcule le montant exact et reste valable pendant une durée limitée.</p>
+        <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">Finaliser l'achat en toute confiance</h1>
+        <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">Fi Fow calcule le montant exact, garde un suivi clair et vous guide jusqu'à la confirmation de réception.</p>
       </div>
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_390px]">
@@ -167,7 +167,7 @@ export default function BuyProduct() {
           {!quote ? (
             <form onSubmit={requestQuote} className="space-y-5">
               <Card className="p-5 sm:p-6">
-                <h2 className="text-lg font-black text-fifow-dark">Mode de remise</h2>
+                <h2 className="text-lg font-black text-fifow-dark">Choisir la remise</h2>
                 <div className="mt-4 grid gap-3 sm:grid-cols-3" role="radiogroup" aria-label="Mode de remise">
                   {allowedModes.map((mode) => {
                     const Icon = modeIcons[mode] || MapPinned
@@ -215,13 +215,13 @@ export default function BuyProduct() {
                 <Button type="button" variant="secondary" size="sm" icon={ArrowLeft} onClick={() => setQuote(null)}>Modifier</Button>
               </div>
               <div className="mt-6 space-y-3 border-y border-fifow-border py-5 text-sm font-semibold text-fifow-secondary">
-                <AmountRow label="Produit" value={quote.itemAmount} />
-                <AmountRow label="Protection acheteur" value={quote.buyerProtectionFee} helper="Paiement suivi et assistance en cas de problème" />
-                <AmountRow label="Livraison" value={quote.deliveryFee} />
+                <AmountRow label="Prix de l’article" value={quote.itemAmount} />
+                <AmountRow label="Protection de votre achat" value={quote.buyerProtectionFee} helper="Paiement sécurisé, suivi de la commande et assistance en cas de problème." />
+                <AmountRow label="Livraison" value={quote.deliveryFee} zeroLabel="Offerte" />
                 {Number(quote.discountAmount || 0) > 0 ? <AmountRow label="Réduction" value={-Number(quote.discountAmount)} /> : null}
               </div>
               <div className="flex items-end justify-between gap-4 py-5">
-                <span className="font-black text-fifow-dark">Total</span>
+                <span className="font-black text-fifow-dark">Total sécurisé</span>
                 <span className="text-2xl font-black text-fifow-primary">{formatGNF(Number(quote.totalAmount || 0))}</span>
               </div>
               <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-fifow-border bg-slate-50 p-4 text-sm font-semibold leading-6 text-fifow-secondary">
@@ -247,7 +247,7 @@ export default function BuyProduct() {
             <Link to={`/products/${product.slug}`} className="mt-4 block text-center text-sm font-black text-fifow-primary hover:underline">Revoir l’annonce</Link>
           </Card>
           <Card className="border-emerald-100 bg-fifow-mint p-4">
-            <div className="flex gap-3"><ShieldCheck className="h-6 w-6 shrink-0 text-fifow-green" /><div><h2 className="font-black text-fifow-dark">Protection acheteur</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">Le montant exact est calculé côté serveur et ne peut pas être modifié depuis cette page.</p></div></div>
+            <div className="flex gap-3"><ShieldCheck className="h-6 w-6 shrink-0 text-fifow-green" /><div><h2 className="font-black text-fifow-dark">Votre achat est protégé</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">Votre paiement reste suivi jusqu’à la confirmation de réception. Le montant de protection est calculé côté serveur.</p></div></div>
           </Card>
         </aside>
       </div>
@@ -267,8 +267,9 @@ function Field({ label, className = '', children }) {
   return <label className={className}><span className="mb-2 block text-sm font-extrabold text-fifow-dark">{label}</span>{children}</label>
 }
 
-function AmountRow({ label, value, helper }) {
-  return <div className="flex items-start justify-between gap-5"><span>{label}{helper ? <small className="mt-0.5 block max-w-md font-medium leading-5">{helper}</small> : null}</span><span className="whitespace-nowrap font-black text-fifow-dark">{formatGNF(Number(value || 0))}</span></div>
+function AmountRow({ label, value, helper, zeroLabel }) {
+  const amount = Number(value || 0)
+  return <div className="flex items-start justify-between gap-5"><span>{label}{helper ? <small className="mt-0.5 block max-w-md font-medium leading-5">{helper}</small> : null}</span><span className="whitespace-nowrap font-black text-fifow-dark">{amount === 0 && zeroLabel ? zeroLabel : formatGNF(amount)}</span></div>
 }
 
 function normalizePhone(value) {
