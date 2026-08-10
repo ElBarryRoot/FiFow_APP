@@ -6,7 +6,7 @@ export default function Logo({ compact = false, className }) {
     <Link to="/" className={cn('inline-flex shrink-0 items-center', className)} aria-label="Fi Fow, accueil">
       <span className={cn('relative block overflow-hidden', compact ? 'h-10 w-10 rounded-lg' : 'h-12 w-40')}>
         <img
-          src="/assets/logo.png"
+          src="/assets/logo_2.png"
           alt="Fi Fow"
           className={cn(
             'absolute max-w-none',
