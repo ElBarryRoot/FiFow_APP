@@ -71,9 +71,9 @@ export function ConnectedHero() {
   return (
     <section className="relative overflow-hidden rounded-lg border border-emerald-100 bg-[#eaf8f3] px-5 py-7 sm:px-8 lg:px-12 lg:py-10">
       <img
-        src="/assets/hero_connected.png"
+        src="/assets/publication+_accueil.jpg"
         alt=""
-        className="absolute inset-y-0 right-0 h-full w-full object-cover object-[70%_center] opacity-10 sm:w-[54%] sm:opacity-45 lg:w-[44%]"
+        className="absolute inset-y-0 right-0 h-full w-full object-cover object-center opacity-10 sm:w-[54%] sm:opacity-45 lg:w-[44%]"
       />
       <div className="relative z-10 max-w-4xl">
         <div className="flex items-center gap-3">
