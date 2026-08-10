@@ -62,17 +62,24 @@ export default function AppHeader({
   return (
     <header className="sticky top-0 z-40 border-b border-fifow-border/80 bg-white/95 backdrop-blur-xl">
       <div className="marketplace-container">
-        <div className="flex min-h-[72px] items-center gap-3 lg:gap-5">
+        <div className="flex min-h-16 items-center gap-2.5 lg:min-h-[68px] lg:gap-4">
           {showBack ? (
             <button onClick={onBack} aria-label="Retour" className="grid h-11 w-11 shrink-0 place-items-center rounded-lg border border-fifow-border bg-white text-fifow-dark transition hover:bg-slate-50">
               <ArrowLeft className="h-5 w-5" />
             </button>
           ) : null}
 
-          <div className={title ? 'hidden sm:block' : ''}><Logo /></div>
+          {title ? (
+            <div className="hidden sm:block"><Logo /></div>
+          ) : (
+            <>
+              <div className="sm:hidden"><Logo compact /></div>
+              <div className="hidden sm:block"><Logo /></div>
+            </>
+          )}
           {title ? <h1 className="min-w-0 flex-1 truncate text-lg font-extrabold text-fifow-dark sm:hidden">{title}</h1> : null}
 
-          <nav className="hidden shrink-0 items-center gap-1 lg:flex">
+          <nav className="hidden shrink-0 items-center gap-1 lg:flex" aria-label="Navigation principale">
             <NavLink to="/products" className={({ isActive }) => `rounded-md px-3 py-2 text-sm font-bold transition hover:bg-slate-100 hover:text-fifow-dark ${isActive ? 'bg-fifow-lavender text-fifow-primary' : 'text-fifow-secondary'}`}>Explorer</NavLink>
             <NavLink to="/products/new" className={({ isActive }) => `rounded-md px-3 py-2 text-sm font-bold transition hover:bg-slate-100 hover:text-fifow-dark ${isActive ? 'bg-fifow-lavender text-fifow-primary' : 'text-fifow-secondary'}`}>Vendre</NavLink>
           </nav>
@@ -84,7 +91,7 @@ export default function AppHeader({
           ) : <div className="hidden flex-1 lg:block" />}
 
           <div className="ml-auto flex shrink-0 items-center gap-2">
-            <Link to={currentUser?.commune ? `/products?location=${encodeURIComponent(currentUser.commune)}` : '/products'} className="hidden h-11 items-center gap-2 rounded-lg border border-fifow-border bg-white px-3 text-sm font-bold text-fifow-dark transition hover:border-violet-200 hover:bg-fifow-lavender sm:flex">
+            <Link to={currentUser?.commune ? `/products?location=${encodeURIComponent(currentUser.commune)}` : '/products'} className="hidden h-10 items-center gap-2 rounded-lg border border-fifow-border bg-white px-3 text-sm font-bold text-fifow-dark transition hover:border-violet-200 hover:bg-fifow-lavender sm:flex">
               <MapPin className="h-4 w-4 text-fifow-primary" />
               <span className="hidden xl:inline">{currentUser?.commune || 'Guinée'}</span>
             </Link>
@@ -93,11 +100,11 @@ export default function AppHeader({
               <>
                 <IconButton as={Link} to="/favorites" icon={Heart} label="Favoris" className="hidden sm:inline-flex" />
                 <IconButton as={Link} to="/messages" icon={MessageCircle} label="Messages" badge={messagesCount} />
-                <IconButton as={Link} to="/notifications" icon={Bell} label="Notifications" badge={notificationsCount} className="hidden sm:inline-flex" />
+                <IconButton as={Link} to="/notifications" icon={Bell} label="Notifications" badge={notificationsCount} />
                 {showPublish ? (
                   <Button as={Link} to="/products/new" size="sm" icon={Plus} className="hidden xl:inline-flex">Publier</Button>
                 ) : null}
-                <Link to="/profile" aria-label="Ouvrir le profil" className="flex h-11 items-center gap-2 rounded-lg border border-fifow-border bg-white p-1.5 pr-2.5 transition hover:border-violet-200">
+                <Link to="/profile" aria-label="Ouvrir le profil" className="flex h-10 items-center gap-2 rounded-lg border border-fifow-border bg-white p-1 pr-2.5 transition hover:border-violet-200">
                   <img src={currentUser.avatar} alt="" className="h-8 w-8 rounded-full object-cover" />
                   <span className="hidden text-sm font-extrabold text-fifow-dark xl:inline">{currentUser.shortName}</span>
                 </Link>

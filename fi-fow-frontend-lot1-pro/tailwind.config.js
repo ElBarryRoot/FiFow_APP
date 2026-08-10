@@ -25,7 +25,7 @@ export default {
         }
       },
       fontFamily: {
-        sans: ['Inter', 'Plus Jakarta Sans', 'system-ui', 'sans-serif'],
+        sans: ['Manrope', 'Segoe UI', 'system-ui', 'sans-serif'],
       },
       boxShadow: {
         soft: '0 18px 48px rgba(16, 25, 54, 0.09)',

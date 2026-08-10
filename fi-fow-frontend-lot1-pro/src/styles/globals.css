@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,13 +5,14 @@
 @layer base {
   :root {
     --safe-bottom: env(safe-area-inset-bottom, 0px);
-    --header-height: 76px;
+    --header-height: 68px;
+    --content-max-width: 1440px;
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; background: #f6f7fb; }
   body {
     margin: 0;
-    font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-family: Manrope, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     background: #f6f7fb;
     color: #111827;
     text-rendering: optimizeLegibility;
@@ -38,16 +37,25 @@
     @apply mx-auto w-full max-w-[430px] bg-white min-h-screen shadow-soft relative overflow-x-hidden;
   }
   .desktop-container {
-    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10;
+    @apply w-full px-4 sm:px-6 lg:px-8 xl:px-10;
   }
   .marketplace-container {
-    @apply mx-auto w-full max-w-[1600px] px-4 sm:px-6 lg:px-8 xl:px-10;
+    @apply w-full px-4 sm:px-6 lg:px-8 xl:px-10;
   }
   .glass-card {
     @apply bg-white/95 border border-fifow-border shadow-card backdrop-blur-xl;
   }
   .section-title {
-    @apply text-xl sm:text-2xl font-extrabold text-fifow-dark;
+    @apply text-xl font-extrabold text-fifow-dark sm:text-[1.375rem];
+  }
+  .page-eyebrow {
+    @apply text-[11px] font-extrabold uppercase text-fifow-primary;
+  }
+  .page-title {
+    @apply text-2xl font-black leading-tight text-fifow-dark sm:text-[1.75rem];
+  }
+  .page-description {
+    @apply max-w-2xl text-sm font-medium leading-6 text-fifow-secondary;
   }
   .premium-scrollbar {
     scrollbar-width: none;

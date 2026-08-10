@@ -9,9 +9,9 @@ const variants = {
 }
 
 const sizes = {
-  sm: 'h-10 px-4 text-sm rounded-lg',
-  md: 'h-12 px-5 text-base rounded-lg',
-  lg: 'h-14 px-6 text-base rounded-lg',
+  sm: 'h-9 px-3.5 text-sm rounded-lg',
+  md: 'h-11 px-4 text-sm rounded-lg',
+  lg: 'h-12 px-5 text-base rounded-lg',
 }
 
 export default function Button({ children, className, variant = 'primary', size = 'md', loading = false, icon: Icon, as: Component = 'button', disabled = false, ...props }) {
@@ -20,7 +20,7 @@ export default function Button({ children, className, variant = 'primary', size 
   return (
     <Component
       className={cn(
-        'inline-flex items-center justify-center gap-2 font-bold transition-colors duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
+        'inline-flex items-center justify-center gap-2 whitespace-nowrap font-bold transition-colors duration-200 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50',
         variants[variant],
         sizes[size],
         className,

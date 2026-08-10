@@ -1,13 +1,19 @@
 import { Link } from 'react-router-dom'
+import { cn } from '../../lib/utils.js'
 
-export default function Logo({ compact = false }) {
+export default function Logo({ compact = false, className }) {
   return (
-    <Link to="/" className="flex items-center gap-3 text-fifow-dark">
-      <span className="relative grid h-11 w-11 place-items-center rounded-2xl bg-gradient-to-br from-fifow-primary to-violet-700 shadow-float">
-        <span className="text-3xl font-black italic leading-none text-white">F</span>
-        <span className="absolute bottom-2 right-2 h-2.5 w-2.5 rounded-full bg-fifow-orange ring-2 ring-white" />
+    <Link to="/" className={cn('inline-flex shrink-0 items-center', className)} aria-label="Fi Fow, accueil">
+      <span className={cn('relative block overflow-hidden', compact ? 'h-10 w-10 rounded-lg' : 'h-12 w-40')}>
+        <img
+          src="/assets/logo.png"
+          alt="Fi Fow"
+          className={cn(
+            'absolute max-w-none',
+            compact ? '-left-1 -top-5 w-32' : 'left-0 -top-[26px] w-40',
+          )}
+        />
       </span>
-      {!compact ? <span className="text-[32px] font-black tracking-[-0.05em]">Fi Fow</span> : null}
     </Link>
   )
 }
