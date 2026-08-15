@@ -29,10 +29,11 @@ export const defaultDraftProduct = {
   subcategoryId: '',
   condition: 'LIKE_NEW',
   negotiable: true,
+  listingMode: 'SINGLE',
+  stockQuantity: 1,
   price: '',
   commune: 'Ratoma',
   quartier: 'Kaporo',
   handoverModes: ['HAND_TO_HAND'],
   photos: [],
 }
-

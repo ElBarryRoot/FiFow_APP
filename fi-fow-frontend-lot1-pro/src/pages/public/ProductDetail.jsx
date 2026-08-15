@@ -25,9 +25,9 @@ export default function ProductDetail() {
   })
   const product = productQuery.data
   const similarQuery = useQuery({
-    queryKey: queryKeys.products({ similarTo: product?.id, category: product?.category?.slug }),
-    queryFn: () => catalogueApi.list({ category: product.category.slug, limit: 6, sort: 'recent' }),
-    enabled: Boolean(product?.category?.slug),
+    queryKey: queryKeys.similarProducts(product?.id),
+    queryFn: () => catalogueApi.similar(product.id, 4),
+    enabled: Boolean(product?.id),
   })
 
   useEffect(() => {
@@ -38,7 +38,7 @@ export default function ProductDetail() {
 
   if (productQuery.isLoading) return <DetailLoader />
   if (productQuery.isError || !product) return <DetailError onRetry={productQuery.refetch} />
-  const suggestions = (similarQuery.data?.items || []).filter((item) => item.id !== product.id).slice(0, 4)
+  const suggestions = similarQuery.data || []
 
   return (
     <MainLayout>
@@ -54,6 +54,7 @@ export default function ProductDetail() {
             <section className="flex rounded-lg border border-fifow-border bg-white p-5 shadow-card sm:p-6 lg:h-[400px] lg:flex-col xl:h-[440px]">
               <div className="flex flex-wrap gap-2">
                 <Badge variant="success">{product.condition}</Badge>
+                <Badge variant="neutral">{product.listingMode === 'STOCK' ? `${product.availableQuantity} disponible${product.availableQuantity > 1 ? 's' : ''}` : product.listingMode === 'LOT' ? 'Lot unique' : 'Article unique'}</Badge>
                 {product.negotiable ? <Badge variant="primary">Négociable</Badge> : null}
                 {product.boosted ? <Badge variant="boost">Annonce boostée</Badge> : null}
               </div>

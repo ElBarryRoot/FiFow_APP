@@ -11,7 +11,13 @@ import {
   toProductCardDto,
   toProductDetailDto
 } from './product.dto.js';
-import type { CreateProductInput, ListProductsInput, UpdateProductInput } from './product.schemas.js';
+import type {
+  CreateProductInput,
+  ListProductsInput,
+  UpdateProductInput,
+  UpdateProductStockInput
+} from './product.schemas.js';
+import { rankSimilarProducts } from './recommendation-ranking.js';
 
 const EDITABLE_STATUSES: ProductStatus[] = ['DRAFT', 'REJECTED'];
 
@@ -64,9 +70,25 @@ function editableProduct(status: ProductStatus) {
   }
 }
 
+async function assertInventoryCapability(sellerId: string, listingMode: 'SINGLE' | 'STOCK' | 'LOT') {
+  if (listingMode !== 'STOCK') return;
+  const seller = await prisma.user.findUnique({
+    where: { id: sellerId },
+    select: { canManageStock: true }
+  });
+  if (!seller?.canManageStock) {
+    throw new ApiError(
+      403,
+      'La vente avec stock est réservée aux vendeurs autorisés.',
+      'STOCK_CAPABILITY_REQUIRED'
+    );
+  }
+}
+
 export const productService = {
   async create(sellerId: string, input: CreateProductInput) {
     await activeSubcategory(input.categoryId, input.subcategoryId);
+    await assertInventoryCapability(sellerId, input.listingMode);
 
     const dailyLimit = await settingNumber('max_daily_products_per_user', 20);
     const startOfDay = new Date();
@@ -88,6 +110,8 @@ export const productService = {
         description: input.description,
         price: BigInt(input.price),
         condition: input.condition,
+        listingMode: input.listingMode,
+        stockQuantity: input.listingMode === 'STOCK' ? input.stockQuantity : 1,
         isNegotiable: input.isNegotiable,
         commune: input.commune,
         quartier: input.quartier,
@@ -101,7 +125,14 @@ export const productService = {
   async update(sellerId: string, productId: string, input: UpdateProductInput) {
     const existing = await prisma.product.findFirst({
       where: { id: productId, sellerId, archivedAt: null },
-      select: { id: true, status: true, categoryId: true, subcategoryId: true }
+      select: {
+        id: true,
+        status: true,
+        categoryId: true,
+        subcategoryId: true,
+        listingMode: true,
+        stockQuantity: true
+      }
     });
     if (!existing) throw new ApiError(404, 'Annonce introuvable.', 'PRODUCT_NOT_FOUND');
     editableProduct(existing.status);
@@ -111,6 +142,14 @@ export const productService = {
     if (input.categoryId || input.subcategoryId) {
       await activeSubcategory(categoryId, subcategoryId);
     }
+    const listingMode = input.listingMode ?? existing.listingMode;
+    const stockQuantity = listingMode === 'STOCK'
+      ? input.stockQuantity ?? (existing.listingMode === 'STOCK' ? existing.stockQuantity : 1)
+      : 1;
+    await assertInventoryCapability(sellerId, listingMode);
+    if (listingMode !== 'STOCK' && input.stockQuantity !== undefined && input.stockQuantity !== 1) {
+      throw new ApiError(400, 'Un article unique ou un lot possède une quantité fixe de 1.', 'INVALID_STOCK_QUANTITY');
+    }
 
     const { price, ...rest } = input;
     const data: Prisma.ProductUncheckedUpdateInput = {
@@ -118,6 +157,10 @@ export const productService = {
       ...(rest.title !== undefined ? { title: rest.title, slug: slugify(rest.title) } : {}),
       ...(rest.description !== undefined ? { description: rest.description } : {}),
       ...(rest.condition !== undefined ? { condition: rest.condition } : {}),
+      ...(rest.listingMode !== undefined ? { listingMode: rest.listingMode } : {}),
+      ...(rest.listingMode !== undefined || rest.stockQuantity !== undefined
+        ? { stockQuantity: listingMode === 'STOCK' ? stockQuantity : 1 }
+        : {}),
       ...(rest.isNegotiable !== undefined ? { isNegotiable: rest.isNegotiable } : {}),
       ...(rest.categoryId !== undefined ? { categoryId: rest.categoryId } : {}),
       ...(rest.subcategoryId !== undefined ? { subcategoryId: rest.subcategoryId } : {}),
@@ -130,6 +173,59 @@ export const productService = {
       where: { id: productId },
       data,
       select: productDetailSelect
+    });
+    return toProductDetailDto(product);
+  },
+
+  async updateStock(sellerId: string, productId: string, input: UpdateProductStockInput) {
+    const product = await prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR UPDATE`;
+      const current = await tx.product.findFirst({
+        where: { id: productId, sellerId, archivedAt: null },
+        select: {
+          id: true,
+          listingMode: true,
+          reservedQuantity: true,
+          status: true,
+          moderationStatus: true,
+          seller: { select: { canManageStock: true } }
+        }
+      });
+      if (!current) throw new ApiError(404, 'Annonce introuvable.', 'PRODUCT_NOT_FOUND');
+      if (current.listingMode !== 'STOCK') {
+        throw new ApiError(409, 'Cette annonce ne gère pas de stock.', 'PRODUCT_STOCK_NOT_SUPPORTED');
+      }
+      if (!current.seller.canManageStock) {
+        throw new ApiError(403, 'La gestion du stock n’est plus autorisée pour ce compte.', 'STOCK_CAPABILITY_REQUIRED');
+      }
+      if (
+        current.moderationStatus !== 'APPROVED' ||
+        !['AVAILABLE', 'RESERVED', 'SOLD'].includes(current.status)
+      ) {
+        throw new ApiError(409, 'Le stock de cette annonce ne peut pas être modifié actuellement.', 'PRODUCT_STOCK_NOT_EDITABLE');
+      }
+      if (input.stockQuantity < current.reservedQuantity) {
+        throw new ApiError(
+          409,
+          `${current.reservedQuantity} exemplaire(s) sont déjà réservé(s).`,
+          'STOCK_BELOW_RESERVED_QUANTITY'
+        );
+      }
+      const status = input.stockQuantity === 0
+        ? 'SOLD'
+        : input.stockQuantity - current.reservedQuantity > 0
+          ? 'AVAILABLE'
+          : 'RESERVED';
+      return tx.product.update({
+        where: { id: current.id },
+        data: {
+          stockQuantity: input.stockQuantity,
+          status,
+          soldAt: status === 'SOLD' ? new Date() : null,
+          ...(current.reservedQuantity === 0 ? { reservedAt: null } : {})
+        },
+        select: productDetailSelect
+      });
     });
     return toProductDetailDto(product);
   },
@@ -282,10 +378,17 @@ export const productService = {
   async archive(sellerId: string, productId: string) {
     const product = await prisma.product.findFirst({
       where: { id: productId, sellerId, archivedAt: null },
-      select: { status: true }
+      select: {
+        status: true,
+        inventoryReservations: {
+          where: { status: 'ACTIVE' },
+          take: 1,
+          select: { id: true }
+        }
+      }
     });
     if (!product) throw new ApiError(404, 'Annonce introuvable.', 'PRODUCT_NOT_FOUND');
-    if (['RESERVED', 'SOLD'].includes(product.status)) {
+    if (['RESERVED', 'SOLD'].includes(product.status) || product.inventoryReservations.length > 0) {
       throw new ApiError(409, 'Une annonce engagée dans une vente ne peut pas être archivée.', 'PRODUCT_ARCHIVE_FORBIDDEN');
     }
     await prisma.product.update({
@@ -321,6 +424,8 @@ export const productService = {
           status: true,
           categoryId: true,
           subcategoryId: true,
+          listingMode: true,
+          seller: { select: { canManageStock: true } },
           images: { where: { archivedAt: null }, select: { id: true } }
         }
       });
@@ -328,6 +433,13 @@ export const productService = {
       editableProduct(product.status);
       if (product.images.length === 0) {
         throw new ApiError(400, 'Ajoutez au moins une image avant de publier.', 'PRODUCT_IMAGE_REQUIRED');
+      }
+      if (product.listingMode === 'STOCK' && !product.seller.canManageStock) {
+        throw new ApiError(
+          403,
+          'La vente avec stock n’est plus autorisée pour ce compte.',
+          'STOCK_CAPABILITY_REQUIRED'
+        );
       }
       const category = await tx.category.findFirst({
         where: {
@@ -438,12 +550,53 @@ export const productService = {
     return toProductDetailDto(product);
   },
 
+  async similar(productId: string, limit: number) {
+    const source = await prisma.product.findFirst({
+      where: {
+        id: productId,
+        status: 'AVAILABLE',
+        moderationStatus: 'APPROVED',
+        archivedAt: null
+      },
+      select: {
+        id: true,
+        sellerId: true,
+        categoryId: true,
+        subcategoryId: true,
+        commune: true,
+        quartier: true,
+        price: true
+      }
+    });
+    if (!source) throw new ApiError(404, 'Annonce introuvable.', 'PRODUCT_NOT_FOUND');
+
+    const candidates = await prisma.product.findMany({
+      where: {
+        id: { not: source.id },
+        categoryId: source.categoryId,
+        status: 'AVAILABLE',
+        moderationStatus: 'APPROVED',
+        archivedAt: null,
+        stockQuantity: { gt: 0 }
+      },
+      orderBy: [{ publishedAt: 'desc' }, { id: 'desc' }],
+      take: 80,
+      select: productCardSelect
+    });
+
+    const ranked = rankSimilarProducts(source, candidates, limit);
+    return ranked.map(toProductCardDto);
+  },
+
   async mine(sellerId: string) {
     const products = await prisma.product.findMany({
       where: { sellerId, archivedAt: null },
       orderBy: { createdAt: 'desc' },
       select: productDetailSelect
     });
-    return products.map(toProductDetailDto);
+    return products.map((product) => ({
+      ...toProductDetailDto(product),
+      reservedQuantity: product.reservedQuantity
+    }));
   }
 };

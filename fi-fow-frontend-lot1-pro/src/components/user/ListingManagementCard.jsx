@@ -6,9 +6,11 @@ import Card from '../ui/Card.jsx'
 import { formatGNF } from '../../lib/formatters.js'
 
 const editableStatuses = new Set(['DRAFT', 'REJECTED'])
+const stockManagementStatuses = new Set(['AVAILABLE', 'RESERVED', 'SOLD'])
 
 export default function ListingManagementCard({ listing, onArchive, archiving = false }) {
   const publicLink = `/products/${listing.slug || listing.id}`
+  const canManageInventory = listing.listingMode === 'STOCK' && stockManagementStatuses.has(listing.status)
   return (
     <Card className="group overflow-hidden p-4 transition duration-300 hover:shadow-soft">
       <div className="grid gap-4 sm:grid-cols-[190px_1fr] xl:grid-cols-[210px_1fr_auto]">
@@ -33,7 +35,7 @@ export default function ListingManagementCard({ listing, onArchive, archiving = 
           </div>
         </div>
         <div className="grid gap-2 sm:grid-cols-3 xl:min-w-40 xl:grid-cols-1 xl:self-center">
-          {editableStatuses.has(listing.status) ? <Button as={Link} to={`/products/${listing.id}/edit`} variant="secondary">Modifier</Button> : <Button as={Link} to={publicLink} variant="secondary">Voir</Button>}
+          {editableStatuses.has(listing.status) ? <Button as={Link} to={`/products/${listing.id}/edit`} variant="secondary">Modifier</Button> : canManageInventory ? <Button as={Link} to={`/products/${listing.id}/edit`} variant="secondary">Gérer le stock</Button> : <Button as={Link} to={publicLink} variant="secondary">Voir</Button>}
           {listing.status === 'AVAILABLE' && !listing.boosted ? <Button as={Link} to={`/boost/plans?productId=${encodeURIComponent(listing.id)}`} className="bg-fifow-orange hover:bg-orange-600">Booster</Button> : null}
           {onArchive ? <Button type="button" variant="ghost" icon={Archive} loading={archiving} onClick={() => onArchive(listing)}>Archiver</Button> : null}
         </div>

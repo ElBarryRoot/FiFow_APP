@@ -13,6 +13,10 @@ export const catalogueApi = {
   async detail(slug) {
     return toProductView((await apiRequest(`/products/${encodeURIComponent(slug)}`, { auth: 'none' })).data)
   },
+  async similar(productId, limit = 4) {
+    const response = await apiRequest(`/products/${encodeURIComponent(productId)}/similar${buildSearchParams({ limit })}`, { auth: 'none' })
+    return response.data.map(toProductView)
+  },
   async mine() {
     return (await apiRequest('/products/mine', { auth: 'required' })).data.map(toProductView)
   },
@@ -21,6 +25,11 @@ export const catalogueApi = {
   },
   async update(productId, input) {
     return toProductView((await apiRequest(`/products/${productId}`, { method: 'PATCH', body: input, auth: 'required' })).data)
+  },
+  async updateStock(productId, stockQuantity) {
+    return toProductView((await apiRequest(`/products/${productId}/stock`, {
+      method: 'PATCH', body: { stockQuantity }, auth: 'required',
+    })).data)
   },
   async addImage(productId, file) {
     const body = new FormData()

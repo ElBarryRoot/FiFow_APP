@@ -7,7 +7,9 @@ import {
   productIdSchema,
   productImageIdSchema,
   reorderProductImagesSchema,
+  similarProductsSchema,
   productSlugSchema,
+  updateProductStockSchema,
   updateProductSchema
 } from '../../modules/products/product.schemas.js';
 import { asyncHandler } from '../../shared/http/async-handler.js';
@@ -18,6 +20,11 @@ export const productRoutes = Router();
 
 productRoutes.get('/', validate(listProductsSchema), asyncHandler(productController.list));
 productRoutes.get('/mine', authenticate, asyncHandler(productController.mine));
+productRoutes.get(
+  '/:productId/similar',
+  validate(similarProductsSchema),
+  asyncHandler(productController.similar)
+);
 productRoutes.get('/:slug', validate(productSlugSchema), asyncHandler(productController.detail));
 productRoutes.post(
   '/',
@@ -32,6 +39,13 @@ productRoutes.patch(
   requireVerifiedEmail,
   validate(updateProductSchema),
   asyncHandler(productController.update)
+);
+productRoutes.patch(
+  '/:productId/stock',
+  authenticate,
+  requireVerifiedEmail,
+  validate(updateProductStockSchema),
+  asyncHandler(productController.updateStock)
 );
 productRoutes.post(
   '/:productId/images',

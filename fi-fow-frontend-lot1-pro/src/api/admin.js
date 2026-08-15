@@ -54,6 +54,7 @@ export const adminApi = {
   users: {
     list: (filters) => list('/admin/users', filters),
     detail: (id) => data(`/admin/users/${id}`),
+    setStockCapability: (id, enabled) => data(`/admin/users/${encodeURIComponent(id)}/stock-capability`, { method: 'PATCH', body: { enabled } }),
   },
 
   products: {

@@ -29,6 +29,17 @@ export const productController = {
     });
   },
 
+  async updateStock(request: Request, response: Response) {
+    const { params, body } = request.validated as {
+      params: { productId: string };
+      body: { stockQuantity: number };
+    };
+    return sendSuccess(response, {
+      data: await productService.updateStock(request.auth!.userId, params.productId, body),
+      message: 'Stock mis à jour.'
+    });
+  },
+
   async addImage(request: Request, response: Response) {
     const { params } = validated<{ params: { productId: string } }>(request);
     if (!request.file) throw new ApiError(400, 'Image requise.', 'IMAGE_REQUIRED');
@@ -97,6 +108,17 @@ export const productController = {
     return sendSuccess(response, {
       data: await productService.detail(params.slug),
       message: 'Annonce chargée.'
+    });
+  },
+
+  async similar(request: Request, response: Response) {
+    const { params, query } = validated<{
+      params: { productId: string };
+      query: { limit: number };
+    }>(request);
+    return sendSuccess(response, {
+      data: await productService.similar(params.productId, query.limit),
+      message: 'Suggestions chargées.'
     });
   },
 

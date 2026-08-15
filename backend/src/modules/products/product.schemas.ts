@@ -8,12 +8,16 @@ const price = z
   .regex(/^[1-9][0-9]{2,14}$/, 'Le prix doit être un entier positif en GNF.');
 const handoverMode = z.enum(['HAND_TO_HAND', 'HOME_DELIVERY', 'PICKUP_POINT']);
 const productCondition = z.enum(['NEW', 'LIKE_NEW', 'GOOD', 'FAIR', 'TO_REPAIR']);
+const listingMode = z.enum(['SINGLE', 'STOCK', 'LOT']);
+const stockQuantity = z.coerce.number().int().min(1).max(10_000);
 
 const productFields = {
   title: z.string().trim().min(5).max(120),
   description: z.string().trim().min(20).max(10_000),
   price,
   condition: productCondition,
+  listingMode: listingMode.default('SINGLE'),
+  stockQuantity: stockQuantity.default(1),
   isNegotiable: z.boolean(),
   categoryId: uuid,
   subcategoryId: uuid,
@@ -22,8 +26,24 @@ const productFields = {
   handoverModes: z.array(handoverMode).min(1).max(3)
 };
 
+function validateInventory(
+  body: {
+    listingMode?: z.infer<typeof listingMode> | undefined;
+    stockQuantity?: number | undefined;
+  },
+  context: z.RefinementCtx
+) {
+  if (body.listingMode && body.listingMode !== 'STOCK' && body.stockQuantity !== undefined && body.stockQuantity !== 1) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['stockQuantity'],
+      message: 'Un article unique ou un lot possède une quantité fixe de 1.'
+    });
+  }
+}
+
 export const createProductSchema = z.object({
-  body: z.object(productFields),
+  body: z.object(productFields).superRefine(validateInventory),
   params: z.object({}),
   query: z.object({})
 });
@@ -35,6 +55,8 @@ export const updateProductSchema = z.object({
       description: productFields.description.optional(),
       price: productFields.price.optional(),
       condition: productFields.condition.optional(),
+      listingMode: listingMode.optional(),
+      stockQuantity: stockQuantity.optional(),
       isNegotiable: productFields.isNegotiable.optional(),
       categoryId: productFields.categoryId.optional(),
       subcategoryId: productFields.subcategoryId.optional(),
@@ -42,10 +64,19 @@ export const updateProductSchema = z.object({
       quartier: productFields.quartier.optional(),
       handoverModes: productFields.handoverModes.optional()
     })
-    .refine((body) => Object.keys(body).length > 0, 'Aucune modification fournie.'),
+    .refine((body) => Object.keys(body).length > 0, 'Aucune modification fournie.')
+    .superRefine(validateInventory),
   params: z.object({ productId: uuid }),
   query: z.object({})
 });
+
+export const updateProductStockSchema = z.object({
+  body: z.object({ stockQuantity: z.coerce.number().int().min(0).max(10_000) }).strict(),
+  params: z.object({ productId: uuid }),
+  query: z.object({})
+});
+
+export type UpdateProductStockInput = z.infer<typeof updateProductStockSchema>['body'];
 
 export const productIdSchema = z.object({
   body: emptyBody,
@@ -69,6 +100,14 @@ export const productSlugSchema = z.object({
   body: emptyBody,
   params: z.object({ slug: z.string().trim().min(3).max(160) }),
   query: z.object({})
+});
+
+export const similarProductsSchema = z.object({
+  body: emptyBody,
+  params: z.object({ productId: uuid }),
+  query: z.object({
+    limit: z.coerce.number().int().min(1).max(12).default(4)
+  })
 });
 
 export const listProductsSchema = z.object({

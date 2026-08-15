@@ -104,6 +104,11 @@ const settingSchema = z.object({
   params: z.object({ key: z.string().regex(/^[a-z0-9_]{2,100}$/) }),
   query: z.object({})
 });
+const stockCapabilitySchema = z.object({
+  body: z.object({ enabled: z.boolean() }).strict(),
+  params: z.object({ id: uuid }),
+  query: z.object({})
+});
 const refundSchema = z.object({
   body: z.object({
     reason: z.string().trim().min(5).max(1_000),
@@ -412,13 +417,54 @@ adminRoutes.get('/users', validate(listSchema), asyncHandler(async (request, res
     ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
     select: {
       id: true, email: true, fullName: true, phone: true, role: true, status: true,
-      sellerVerificationStatus: true, createdAt: true, lastLoginAt: true
+      sellerVerificationStatus: true, canManageStock: true, createdAt: true, lastLoginAt: true
     }
   });
   const more = rows.length > query.limit;
   const page = more ? rows.slice(0, query.limit) : rows;
   return sendSuccess(response, { data: page, meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
 }));
+
+adminRoutes.patch(
+  '/users/:id/stock-capability',
+  requireRole('ADMIN', 'SUPER_ADMIN'),
+  validate(stockCapabilitySchema),
+  asyncHandler(async (request, response) => {
+    const { params, body } = request.validated as {
+      params: { id: string };
+      body: { enabled: boolean };
+    };
+    const current = await prisma.user.findUnique({
+      where: { id: params.id },
+      select: { id: true, canManageStock: true, status: true }
+    });
+    if (!current) throw new ApiError(404, 'Utilisateur introuvable.', 'USER_NOT_FOUND');
+    if (body.enabled && current.status !== 'ACTIVE') {
+      throw new ApiError(409, 'Le vendeur doit être actif pour gérer du stock.', 'SELLER_NOT_ACTIVE');
+    }
+    const updated = await prisma.$transaction(async (tx) => {
+      const user = await tx.user.update({
+        where: { id: current.id },
+        data: { canManageStock: body.enabled },
+        select: { id: true, canManageStock: true }
+      });
+      await audit(
+        tx,
+        request,
+        body.enabled ? 'STOCK_CAPABILITY_GRANTED' : 'STOCK_CAPABILITY_REVOKED',
+        'USER',
+        current.id,
+        { canManageStock: current.canManageStock },
+        { canManageStock: user.canManageStock }
+      );
+      return user;
+    });
+    return sendSuccess(response, {
+      data: updated,
+      message: body.enabled ? 'Gestion du stock autorisée.' : 'Gestion du stock retirée.'
+    });
+  })
+);
 
 adminRoutes.get('/reports', validate(listSchema), asyncHandler(async (request, response) => {
   const { query } = request.validated as { query: { cursor?: string; limit: number; status?: string } };
@@ -537,6 +583,15 @@ adminRoutes.post('/moderation/actions', validate(moderationSchema), asyncHandler
           seller: { select: { status: true } },
           category: { select: { isActive: true, archivedAt: true } },
           images: { where: { archivedAt: null }, take: 1, select: { id: true } },
+          orderItems: {
+            where: {
+              order: {
+                status: { in: ['AWAITING_SELLER_CONFIRMATION', 'AWAITING_PAYMENT', 'PAID', 'RESERVED', 'PREPARING', 'READY_FOR_HANDOVER', 'IN_DELIVERY', 'RECEIVED', 'DISPUTED'] }
+              }
+            },
+            take: 1,
+            select: { id: true }
+          },
           orders: {
             where: { status: { in: ['AWAITING_SELLER_CONFIRMATION', 'AWAITING_PAYMENT', 'PAID', 'RESERVED', 'PREPARING', 'READY_FOR_HANDOVER', 'IN_DELIVERY', 'RECEIVED', 'DISPUTED'] } },
             take: 1,
@@ -547,10 +602,26 @@ adminRoutes.post('/moderation/actions', validate(moderationSchema), asyncHandler
       if (!product || !['HIDDEN', 'REJECTED', 'ARCHIVED'].includes(product.status)) {
         throw new ApiError(409, 'Annonce non restaurable.', 'PRODUCT_NOT_RESTORABLE');
       }
-      if (product.seller.status !== 'ACTIVE' || !product.category.isActive || product.category.archivedAt || !product.images.length || product.orders.length) {
+      if (
+        product.seller.status !== 'ACTIVE' ||
+        !product.category.isActive ||
+        product.category.archivedAt ||
+        !product.images.length ||
+        product.stockQuantity <= 0 ||
+        product.orders.length > 0 ||
+        product.orderItems.length > 0
+      ) {
         throw new ApiError(409, 'Les conditions de restauration ne sont pas reunies.', 'PRODUCT_RESTORE_REQUIREMENTS_FAILED');
       }
-      await tx.product.update({ where: { id: body.targetId }, data: { status: 'AVAILABLE', moderationStatus: 'APPROVED', archivedAt: null, moderationReason: null } });
+      await tx.product.update({
+        where: { id: body.targetId },
+        data: {
+          status: product.stockQuantity - product.reservedQuantity > 0 ? 'AVAILABLE' : 'RESERVED',
+          moderationStatus: 'APPROVED',
+          archivedAt: null,
+          moderationReason: null
+        }
+      });
     } else if (body.action === 'SUSPEND_USER' || body.action === 'BAN_USER' || body.action === 'RESTORE_USER') {
       const status = body.action === 'SUSPEND_USER' ? 'SUSPENDED' : body.action === 'BAN_USER' ? 'BANNED' : 'ACTIVE';
       await tx.user.update({ where: { id: body.targetId }, data: { status } });
@@ -867,7 +938,8 @@ adminRoutes.get('/orders', validate(listSchema), asyncHandler(async (request, re
           { buyer: { fullName: { contains: query.search, mode: 'insensitive' } } },
           { buyer: { email: { contains: query.search, mode: 'insensitive' } } },
           { seller: { fullName: { contains: query.search, mode: 'insensitive' } } },
-          { seller: { email: { contains: query.search, mode: 'insensitive' } } }
+          { seller: { email: { contains: query.search, mode: 'insensitive' } } },
+          { items: { some: { product: { title: { contains: query.search, mode: 'insensitive' } } } } }
         ]
       } : {})
     },
@@ -877,6 +949,8 @@ adminRoutes.get('/orders', validate(listSchema), asyncHandler(async (request, re
     select: {
       id: true, reference: true, status: true, handoverMode: true, totalAmount: true, currency: true, createdAt: true,
       product: { select: { id: true, title: true } },
+      items: { select: { id: true, quantity: true, product: { select: { id: true, title: true } } } },
+      _count: { select: { items: true } },
       buyer: { select: { id: true, fullName: true, email: true } },
       seller: { select: { id: true, fullName: true, email: true } },
       productSnapshot: true, buyerSnapshot: true, sellerSnapshot: true
@@ -893,6 +967,7 @@ adminRoutes.get('/orders/:id', validate(idSchema), asyncHandler(async (request, 
     where: { id: params.id },
     include: {
       product: { select: { id: true, title: true, slug: true } },
+      items: { include: { product: { select: { id: true, title: true, slug: true } } }, orderBy: { createdAt: 'asc' } },
       buyer: { select: { id: true, fullName: true, email: true, phone: true } },
       seller: { select: { id: true, fullName: true, email: true, phone: true } },
       statusHistory: { orderBy: { createdAt: 'desc' }, select: { id: true, actorType: true, toStatus: true, reason: true, createdAt: true } },

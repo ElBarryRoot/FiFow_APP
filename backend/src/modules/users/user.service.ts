@@ -85,6 +85,20 @@ export const userService = {
   async archive(userId: string) {
     const now = new Date();
     await prisma.$transaction(async (tx) => {
+      const activeOrder = await tx.order.findFirst({
+        where: {
+          OR: [{ buyerId: userId }, { sellerId: userId }],
+          status: { notIn: ['COMPLETED', 'CANCELLED', 'REFUNDED'] }
+        },
+        select: { id: true }
+      });
+      if (activeOrder) {
+        throw new ApiError(
+          409,
+          'Votre compte ne peut pas être archivé tant qu’une commande est en cours.',
+          'ACCOUNT_HAS_ACTIVE_ORDER'
+        );
+      }
       await tx.user.update({
         where: { id: userId },
         data: { status: 'ARCHIVED', archivedAt: now }

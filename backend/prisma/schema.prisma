@@ -56,6 +56,18 @@ enum ProductCondition {
   TO_REPAIR
 }
 
+enum ListingMode {
+  SINGLE
+  STOCK
+  LOT
+}
+
+enum InventoryReservationStatus {
+  ACTIVE
+  RELEASED
+  CONSUMED
+}
+
 enum HandoverMode {
   HAND_TO_HAND
   HOME_DELIVERY
@@ -310,6 +322,7 @@ model User {
   role                     UserRole                 @default(USER)
   status                   UserStatus               @default(ACTIVE)
   sellerVerificationStatus SellerVerificationStatus @default(NOT_REQUESTED) @map("seller_verification_status")
+  canManageStock           Boolean                  @default(false) @map("can_manage_stock")
   averageRating            Decimal                  @default(0) @map("average_rating") @db.Decimal(3, 2)
   totalReviews             Int                      @default(0) @map("total_reviews")
   trustScore               Int                      @default(0) @map("trust_score")
@@ -342,6 +355,7 @@ model User {
   ordersSold               Order[]                  @relation("OrderSeller")
   orderStatusChanges       OrderStatusHistory[]     @relation("OrderStatusActor")
   checkoutQuotes           CheckoutQuote[]
+  cart                     Cart?
   payments                 Payment[]
   refundRequests           Refund[]                 @relation("RefundRequester")
   payouts                  Payout[]                 @relation("PayoutSeller")
@@ -452,47 +466,54 @@ model Category {
 }
 
 model Product {
-  id                 String           @id @default(uuid()) @db.Uuid
-  sellerId           String           @map("seller_id") @db.Uuid
-  categoryId         String           @map("category_id") @db.Uuid
-  subcategoryId      String           @map("subcategory_id") @db.Uuid
-  title              String           @db.VarChar(120)
-  slug               String           @unique @db.VarChar(160)
-  description        String           @db.Text
-  price              BigInt
-  currency           Currency         @default(GNF)
-  condition          ProductCondition
-  isNegotiable       Boolean          @map("is_negotiable")
-  commune            String           @db.VarChar(80)
-  quartier           String           @db.VarChar(80)
-  handoverModes      HandoverMode[]   @map("handover_modes")
-  status             ProductStatus    @default(DRAFT)
-  moderationStatus   ModerationStatus @default(PENDING) @map("moderation_status")
-  moderationReason   String?          @map("moderation_reason") @db.VarChar(1000)
-  viewsCount         Int              @default(0) @map("views_count")
-  likesCount         Int              @default(0) @map("likes_count")
-  favoritesCount     Int              @default(0) @map("favorites_count")
-  conversationsCount Int              @default(0) @map("conversations_count")
-  reportsCount       Int              @default(0) @map("reports_count")
-  publishedAt        DateTime?        @map("published_at")
-  reservedAt         DateTime?        @map("reserved_at")
-  soldAt             DateTime?        @map("sold_at")
-  archivedAt         DateTime?        @map("archived_at")
-  createdAt          DateTime         @default(now()) @map("created_at")
-  updatedAt          DateTime         @updatedAt @map("updated_at")
-  seller             User             @relation("ProductSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  category           Category         @relation("ProductCategory", fields: [categoryId], references: [id], onDelete: Restrict)
-  subcategory        Category         @relation("ProductSubcategory", fields: [subcategoryId], references: [id], onDelete: Restrict)
-  images             ProductImage[]
-  favorites          Favorite[]
-  likes              ProductLike[]
-  views              ProductView[]
-  conversations      Conversation[]
-  offers             Offer[]
-  quotes             CheckoutQuote[]
-  orders             Order[]
-  reviews            Review[]
-  boosts             Boost[]
+  id                    String                 @id @default(uuid()) @db.Uuid
+  sellerId              String                 @map("seller_id") @db.Uuid
+  categoryId            String                 @map("category_id") @db.Uuid
+  subcategoryId         String                 @map("subcategory_id") @db.Uuid
+  title                 String                 @db.VarChar(120)
+  slug                  String                 @unique @db.VarChar(160)
+  description           String                 @db.Text
+  price                 BigInt
+  currency              Currency               @default(GNF)
+  condition             ProductCondition
+  listingMode           ListingMode            @default(SINGLE) @map("listing_mode")
+  stockQuantity         Int                    @default(1) @map("stock_quantity")
+  reservedQuantity      Int                    @default(0) @map("reserved_quantity")
+  isNegotiable          Boolean                @map("is_negotiable")
+  commune               String                 @db.VarChar(80)
+  quartier              String                 @db.VarChar(80)
+  handoverModes         HandoverMode[]         @map("handover_modes")
+  status                ProductStatus          @default(DRAFT)
+  moderationStatus      ModerationStatus       @default(PENDING) @map("moderation_status")
+  moderationReason      String?                @map("moderation_reason") @db.VarChar(1000)
+  viewsCount            Int                    @default(0) @map("views_count")
+  likesCount            Int                    @default(0) @map("likes_count")
+  favoritesCount        Int                    @default(0) @map("favorites_count")
+  conversationsCount    Int                    @default(0) @map("conversations_count")
+  reportsCount          Int                    @default(0) @map("reports_count")
+  publishedAt           DateTime?              @map("published_at")
+  reservedAt            DateTime?              @map("reserved_at")
+  soldAt                DateTime?              @map("sold_at")
+  archivedAt            DateTime?              @map("archived_at")
+  createdAt             DateTime               @default(now()) @map("created_at")
+  updatedAt             DateTime               @updatedAt @map("updated_at")
+  seller                User                   @relation("ProductSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  category              Category               @relation("ProductCategory", fields: [categoryId], references: [id], onDelete: Restrict)
+  subcategory           Category               @relation("ProductSubcategory", fields: [subcategoryId], references: [id], onDelete: Restrict)
+  images                ProductImage[]
+  favorites             Favorite[]
+  likes                 ProductLike[]
+  views                 ProductView[]
+  conversations         Conversation[]
+  offers                Offer[]
+  quotes                CheckoutQuote[]
+  quoteItems            CheckoutQuoteItem[]
+  orders                Order[]
+  orderItems            OrderItem[]
+  cartItems             CartItem[]
+  inventoryReservations InventoryReservation[]
+  reviews               Review[]
+  boosts                Boost[]
 
   @@index([status, moderationStatus, publishedAt(sort: Desc)])
   @@index([categoryId, subcategoryId, status])
@@ -566,6 +587,35 @@ model ProductView {
   @@map("product_views")
 }
 
+model Cart {
+  id        String     @id @default(uuid()) @db.Uuid
+  buyerId   String     @unique @map("buyer_id") @db.Uuid
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+  buyer     User       @relation(fields: [buyerId], references: [id], onDelete: Cascade)
+  items     CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id                  String   @id @default(uuid()) @db.Uuid
+  cartId              String   @map("cart_id") @db.Uuid
+  productId           String   @map("product_id") @db.Uuid
+  quantity            Int      @default(1)
+  unitPriceAtAddition BigInt   @map("unit_price_at_addition")
+  currency            Currency @default(GNF)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+  cart                Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product             Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([cartId, productId])
+  @@index([cartId, createdAt])
+  @@index([productId])
+  @@map("cart_items")
+}
+
 model Conversation {
   id                String             @id @default(uuid()) @db.Uuid
   productId         String             @map("product_id") @db.Uuid
@@ -621,29 +671,30 @@ model Message {
 }
 
 model Offer {
-  id             String          @id @default(uuid()) @db.Uuid
-  productId      String          @map("product_id") @db.Uuid
-  conversationId String          @map("conversation_id") @db.Uuid
-  creatorId      String          @map("creator_id") @db.Uuid
-  recipientId    String          @map("recipient_id") @db.Uuid
-  parentOfferId  String?         @map("parent_offer_id") @db.Uuid
+  id             String              @id @default(uuid()) @db.Uuid
+  productId      String              @map("product_id") @db.Uuid
+  conversationId String              @map("conversation_id") @db.Uuid
+  creatorId      String              @map("creator_id") @db.Uuid
+  recipientId    String              @map("recipient_id") @db.Uuid
+  parentOfferId  String?             @map("parent_offer_id") @db.Uuid
   amount         BigInt
-  currency       Currency        @default(GNF)
-  handoverMode   HandoverMode    @map("handover_mode")
-  status         OfferStatus     @default(PENDING)
-  message        String?         @db.VarChar(500)
-  expiresAt      DateTime        @map("expires_at")
-  respondedAt    DateTime?       @map("responded_at")
-  createdAt      DateTime        @default(now()) @map("created_at")
-  updatedAt      DateTime        @updatedAt @map("updated_at")
-  product        Product         @relation(fields: [productId], references: [id], onDelete: Restrict)
-  conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Restrict)
-  creator        User            @relation("OfferCreator", fields: [creatorId], references: [id], onDelete: Restrict)
-  recipient      User            @relation("OfferRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
-  parentOffer    Offer?          @relation("OfferCounterChain", fields: [parentOfferId], references: [id], onDelete: Restrict)
-  counterOffers  Offer[]         @relation("OfferCounterChain")
-  acceptedOrder  Order?          @relation("AcceptedOffer")
+  currency       Currency            @default(GNF)
+  handoverMode   HandoverMode        @map("handover_mode")
+  status         OfferStatus         @default(PENDING)
+  message        String?             @db.VarChar(500)
+  expiresAt      DateTime            @map("expires_at")
+  respondedAt    DateTime?           @map("responded_at")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  product        Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  conversation   Conversation        @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  creator        User                @relation("OfferCreator", fields: [creatorId], references: [id], onDelete: Restrict)
+  recipient      User                @relation("OfferRecipient", fields: [recipientId], references: [id], onDelete: Restrict)
+  parentOffer    Offer?              @relation("OfferCounterChain", fields: [parentOfferId], references: [id], onDelete: Restrict)
+  counterOffers  Offer[]             @relation("OfferCounterChain")
+  acceptedOrder  Order?              @relation("AcceptedOffer")
   quotes         CheckoutQuote[]
+  quoteItems     CheckoutQuoteItem[]
 
   @@index([conversationId, createdAt(sort: Desc)])
   @@index([recipientId, status, expiresAt])
@@ -654,92 +705,151 @@ model Offer {
 }
 
 model CheckoutQuote {
-  id                 String       @id @default(uuid()) @db.Uuid
-  buyerId            String       @map("buyer_id") @db.Uuid
-  productId          String       @map("product_id") @db.Uuid
-  offerId            String?      @map("offer_id") @db.Uuid
-  itemAmount         BigInt       @map("item_amount")
-  buyerProtectionFee BigInt       @map("buyer_protection_fee")
-  deliveryFee        BigInt       @map("delivery_fee")
-  discountAmount     BigInt       @default(0) @map("discount_amount")
-  totalAmount        BigInt       @map("total_amount")
-  sellerNetAmount    BigInt       @map("seller_net_amount")
-  currency           Currency     @default(GNF)
-  handoverMode       HandoverMode @map("handover_mode")
-  handoverDetails    Json?        @map("handover_details")
-  feePolicyVersion   String       @map("fee_policy_version") @db.VarChar(40)
-  termsVersion       String       @map("terms_version") @db.VarChar(40)
-  expiresAt          DateTime     @map("expires_at")
-  consumedAt         DateTime?    @map("consumed_at")
-  createdAt          DateTime     @default(now()) @map("created_at")
-  buyer              User         @relation(fields: [buyerId], references: [id], onDelete: Restrict)
-  product            Product      @relation(fields: [productId], references: [id], onDelete: Restrict)
-  offer              Offer?       @relation(fields: [offerId], references: [id], onDelete: Restrict)
+  id                 String              @id @default(uuid()) @db.Uuid
+  buyerId            String              @map("buyer_id") @db.Uuid
+  productId          String              @map("product_id") @db.Uuid
+  offerId            String?             @map("offer_id") @db.Uuid
+  itemAmount         BigInt              @map("item_amount")
+  buyerProtectionFee BigInt              @map("buyer_protection_fee")
+  deliveryFee        BigInt              @map("delivery_fee")
+  discountAmount     BigInt              @default(0) @map("discount_amount")
+  totalAmount        BigInt              @map("total_amount")
+  sellerNetAmount    BigInt              @map("seller_net_amount")
+  currency           Currency            @default(GNF)
+  handoverMode       HandoverMode        @map("handover_mode")
+  handoverDetails    Json?               @map("handover_details")
+  feePolicyVersion   String              @map("fee_policy_version") @db.VarChar(40)
+  termsVersion       String              @map("terms_version") @db.VarChar(40)
+  expiresAt          DateTime            @map("expires_at")
+  consumedAt         DateTime?           @map("consumed_at")
+  createdAt          DateTime            @default(now()) @map("created_at")
+  buyer              User                @relation(fields: [buyerId], references: [id], onDelete: Restrict)
+  product            Product             @relation(fields: [productId], references: [id], onDelete: Restrict)
+  offer              Offer?              @relation(fields: [offerId], references: [id], onDelete: Restrict)
   order              Order?
+  items              CheckoutQuoteItem[]
 
   @@index([buyerId, expiresAt])
   @@index([productId, expiresAt])
   @@map("checkout_quotes")
 }
 
+model CheckoutQuoteItem {
+  id              String        @id @default(uuid()) @db.Uuid
+  quoteId         String        @map("quote_id") @db.Uuid
+  productId       String        @map("product_id") @db.Uuid
+  offerId         String?       @map("offer_id") @db.Uuid
+  quantity        Int           @default(1)
+  unitPrice       BigInt        @map("unit_price")
+  lineTotal       BigInt        @map("line_total")
+  productSnapshot Json          @map("product_snapshot")
+  createdAt       DateTime      @default(now()) @map("created_at")
+  quote           CheckoutQuote @relation(fields: [quoteId], references: [id], onDelete: Cascade)
+  product         Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  offer           Offer?        @relation(fields: [offerId], references: [id], onDelete: Restrict)
+
+  @@unique([quoteId, productId])
+  @@index([productId, quoteId])
+  @@map("checkout_quote_items")
+}
+
 model Order {
-  id                 String               @id @default(uuid()) @db.Uuid
-  reference          String               @unique @db.VarChar(40)
-  idempotencyKey     String?              @unique @map("idempotency_key") @db.VarChar(120)
-  productId          String               @map("product_id") @db.Uuid
-  buyerId            String               @map("buyer_id") @db.Uuid
-  sellerId           String               @map("seller_id") @db.Uuid
-  conversationId     String?              @map("conversation_id") @db.Uuid
-  acceptedOfferId    String?              @unique @map("accepted_offer_id") @db.Uuid
-  quoteId            String               @unique @map("quote_id") @db.Uuid
-  status             OrderStatus          @default(AWAITING_SELLER_CONFIRMATION)
-  handoverMode       HandoverMode         @map("handover_mode")
-  handoverDetails    Json?                @map("handover_details")
-  currency           Currency             @default(GNF)
-  itemAmount         BigInt               @map("item_amount")
-  buyerProtectionFee BigInt               @map("buyer_protection_fee")
-  deliveryFee        BigInt               @map("delivery_fee")
-  discountAmount     BigInt               @default(0) @map("discount_amount")
-  totalAmount        BigInt               @map("total_amount")
-  sellerNetAmount    BigInt               @map("seller_net_amount")
-  feePolicyVersion   String               @map("fee_policy_version") @db.VarChar(40)
-  termsVersion       String               @map("terms_version") @db.VarChar(40)
-  productSnapshot    Json                 @map("product_snapshot")
-  buyerSnapshot      Json                 @map("buyer_snapshot")
-  sellerSnapshot     Json                 @map("seller_snapshot")
-  version            Int                  @default(1)
-  sellerConfirmedAt  DateTime?            @map("seller_confirmed_at")
-  sellerConfirmationExpiresAt DateTime?   @map("seller_confirmation_expires_at")
-  paymentExpiresAt   DateTime?            @map("payment_expires_at")
-  paidAt             DateTime?            @map("paid_at")
-  preparedAt         DateTime?            @map("prepared_at")
-  receivedAt         DateTime?            @map("received_at")
-  completedAt        DateTime?            @map("completed_at")
-  cancelledAt        DateTime?            @map("cancelled_at")
-  cancelReason       String?              @map("cancel_reason") @db.VarChar(600)
-  disputedAt         DateTime?            @map("disputed_at")
-  disputeReason      String?              @map("dispute_reason") @db.VarChar(1000)
-  archivedAt         DateTime?            @map("archived_at")
-  createdAt          DateTime             @default(now()) @map("created_at")
-  updatedAt          DateTime             @updatedAt @map("updated_at")
-  product            Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
-  buyer              User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
-  seller             User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
-  conversation       Conversation?        @relation(fields: [conversationId], references: [id], onDelete: Restrict)
-  acceptedOffer      Offer?               @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id], onDelete: Restrict)
-  quote              CheckoutQuote        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  statusHistory      OrderStatusHistory[]
-  payments           Payment[]
-  refunds            Refund[]
-  payout             Payout?
-  delivery           Delivery?
-  reviews            Review[]
+  id                          String               @id @default(uuid()) @db.Uuid
+  reference                   String               @unique @db.VarChar(40)
+  idempotencyKey              String?              @unique @map("idempotency_key") @db.VarChar(120)
+  productId                   String               @map("product_id") @db.Uuid
+  buyerId                     String               @map("buyer_id") @db.Uuid
+  sellerId                    String               @map("seller_id") @db.Uuid
+  conversationId              String?              @map("conversation_id") @db.Uuid
+  acceptedOfferId             String?              @unique @map("accepted_offer_id") @db.Uuid
+  quoteId                     String               @unique @map("quote_id") @db.Uuid
+  status                      OrderStatus          @default(AWAITING_SELLER_CONFIRMATION)
+  handoverMode                HandoverMode         @map("handover_mode")
+  handoverDetails             Json?                @map("handover_details")
+  currency                    Currency             @default(GNF)
+  itemAmount                  BigInt               @map("item_amount")
+  buyerProtectionFee          BigInt               @map("buyer_protection_fee")
+  deliveryFee                 BigInt               @map("delivery_fee")
+  discountAmount              BigInt               @default(0) @map("discount_amount")
+  totalAmount                 BigInt               @map("total_amount")
+  sellerNetAmount             BigInt               @map("seller_net_amount")
+  feePolicyVersion            String               @map("fee_policy_version") @db.VarChar(40)
+  termsVersion                String               @map("terms_version") @db.VarChar(40)
+  productSnapshot             Json                 @map("product_snapshot")
+  buyerSnapshot               Json                 @map("buyer_snapshot")
+  sellerSnapshot              Json                 @map("seller_snapshot")
+  version                     Int                  @default(1)
+  sellerConfirmedAt           DateTime?            @map("seller_confirmed_at")
+  sellerConfirmationExpiresAt DateTime?            @map("seller_confirmation_expires_at")
+  paymentExpiresAt            DateTime?            @map("payment_expires_at")
+  paidAt                      DateTime?            @map("paid_at")
+  preparedAt                  DateTime?            @map("prepared_at")
+  receivedAt                  DateTime?            @map("received_at")
+  completedAt                 DateTime?            @map("completed_at")
+  cancelledAt                 DateTime?            @map("cancelled_at")
+  cancelReason                String?              @map("cancel_reason") @db.VarChar(600)
+  disputedAt                  DateTime?            @map("disputed_at")
+  disputeReason               String?              @map("dispute_reason") @db.VarChar(1000)
+  archivedAt                  DateTime?            @map("archived_at")
+  createdAt                   DateTime             @default(now()) @map("created_at")
+  updatedAt                   DateTime             @updatedAt @map("updated_at")
+  product                     Product              @relation(fields: [productId], references: [id], onDelete: Restrict)
+  buyer                       User                 @relation("OrderBuyer", fields: [buyerId], references: [id], onDelete: Restrict)
+  seller                      User                 @relation("OrderSeller", fields: [sellerId], references: [id], onDelete: Restrict)
+  conversation                Conversation?        @relation(fields: [conversationId], references: [id], onDelete: Restrict)
+  acceptedOffer               Offer?               @relation("AcceptedOffer", fields: [acceptedOfferId], references: [id], onDelete: Restrict)
+  quote                       CheckoutQuote        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  statusHistory               OrderStatusHistory[]
+  payments                    Payment[]
+  refunds                     Refund[]
+  payout                      Payout?
+  delivery                    Delivery?
+  reviews                     Review[]
+  items                       OrderItem[]
 
   @@index([buyerId, createdAt(sort: Desc)])
   @@index([sellerId, createdAt(sort: Desc)])
   @@index([productId, status])
   @@index([status, updatedAt])
   @@map("orders")
+}
+
+model OrderItem {
+  id              String                @id @default(uuid()) @db.Uuid
+  orderId         String                @map("order_id") @db.Uuid
+  productId       String                @map("product_id") @db.Uuid
+  quantity        Int                   @default(1)
+  unitPrice       BigInt                @map("unit_price")
+  lineTotal       BigInt                @map("line_total")
+  productSnapshot Json                  @map("product_snapshot")
+  createdAt       DateTime              @default(now()) @map("created_at")
+  order           Order                 @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product         Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  reservation     InventoryReservation?
+
+  @@unique([orderId, productId])
+  @@index([productId, orderId])
+  @@map("order_items")
+}
+
+model InventoryReservation {
+  id            String                     @id @default(uuid()) @db.Uuid
+  orderItemId   String                     @unique @map("order_item_id") @db.Uuid
+  productId     String                     @map("product_id") @db.Uuid
+  quantity      Int
+  status        InventoryReservationStatus @default(ACTIVE)
+  expiresAt     DateTime                   @map("expires_at")
+  releasedAt    DateTime?                  @map("released_at")
+  consumedAt    DateTime?                  @map("consumed_at")
+  releaseReason String?                    @map("release_reason") @db.VarChar(160)
+  createdAt     DateTime                   @default(now()) @map("created_at")
+  updatedAt     DateTime                   @updatedAt @map("updated_at")
+  orderItem     OrderItem                  @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  product       Product                    @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([status, expiresAt])
+  @@index([productId, status])
+  @@map("inventory_reservations")
 }
 
 model OrderStatusHistory {
@@ -1106,22 +1216,22 @@ model AppSetting {
 }
 
 model SupportTicket {
-  id               String                @id @default(uuid()) @db.Uuid
-  reference        String                @unique @db.VarChar(40)
-  requesterId      String                @map("requester_id") @db.Uuid
-  assignedToId     String?               @map("assigned_to_id") @db.Uuid
-  topic            String                @db.VarChar(80)
-  subject          String                @db.VarChar(160)
-  relatedReference String?               @map("related_reference") @db.VarChar(120)
-  status           SupportTicketStatus   @default(OPEN)
-  priority         SupportTicketPriority @default(MEDIUM)
-  lastMessageAt    DateTime              @default(now()) @map("last_message_at")
-  resolvedAt       DateTime?             @map("resolved_at")
-  closedAt         DateTime?             @map("closed_at")
-  createdAt        DateTime              @default(now()) @map("created_at")
-  updatedAt        DateTime              @updatedAt @map("updated_at")
-  requester        User                  @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
-  assignedTo       User?                 @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  id               String                 @id @default(uuid()) @db.Uuid
+  reference        String                 @unique @db.VarChar(40)
+  requesterId      String                 @map("requester_id") @db.Uuid
+  assignedToId     String?                @map("assigned_to_id") @db.Uuid
+  topic            String                 @db.VarChar(80)
+  subject          String                 @db.VarChar(160)
+  relatedReference String?                @map("related_reference") @db.VarChar(120)
+  status           SupportTicketStatus    @default(OPEN)
+  priority         SupportTicketPriority  @default(MEDIUM)
+  lastMessageAt    DateTime               @default(now()) @map("last_message_at")
+  resolvedAt       DateTime?              @map("resolved_at")
+  closedAt         DateTime?              @map("closed_at")
+  createdAt        DateTime               @default(now()) @map("created_at")
+  updatedAt        DateTime               @updatedAt @map("updated_at")
+  requester        User                   @relation("SupportTicketRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  assignedTo       User?                  @relation("SupportTicketAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
   messages         SupportTicketMessage[]
 
   @@index([requesterId, updatedAt(sort: Desc)])

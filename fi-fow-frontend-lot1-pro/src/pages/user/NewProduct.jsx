@@ -39,6 +39,7 @@ function validateStep(step, draft) {
     if (draft.commune.trim().length < 2) errors.commune = 'La commune est obligatoire.'
     if (draft.quartier.trim().length < 2) errors.quartier = 'Le quartier est obligatoire.'
     if (!draft.handoverModes.length) errors.handoverModes = 'Sélectionnez au moins un mode de remise.'
+    if (draft.listingMode === 'STOCK' && (!Number.isInteger(Number(draft.stockQuantity)) || Number(draft.stockQuantity) < 1 || Number(draft.stockQuantity) > 10000)) errors.stockQuantity = 'Indiquez une quantité comprise entre 1 et 10 000.'
   }
   return errors
 }
@@ -95,6 +96,7 @@ export default function NewProduct() {
       const productInput = {
         title: draft.title.trim(), description: draft.description.trim(), price: draft.price,
         condition: draft.condition, isNegotiable: draft.negotiable,
+        listingMode: draft.listingMode, stockQuantity: Number(draft.stockQuantity),
         categoryId: draft.categoryId, subcategoryId: draft.subcategoryId,
         commune: draft.commune.trim(), quartier: draft.quartier.trim(), handoverModes: draft.handoverModes,
       }
@@ -151,7 +153,7 @@ export default function NewProduct() {
             <div className="p-5 sm:p-7 lg:p-8">
               <div className={cn(currentStep === 1 ? 'block' : 'hidden')}><ProductDetailsStep draft={draft} updateDraft={updateDraft} categories={categoriesQuery.data || []} categoriesLoading={categoriesQuery.isLoading} errors={errors} /></div>
               <div className={cn(currentStep === 2 ? 'block' : 'hidden')}><ProductPhotosStep draft={draft} updateDraft={updateDraft} errors={errors} /></div>
-              <div className={cn(currentStep === 3 ? 'block' : 'hidden')}><ProductPriceLocationStep draft={draft} updateDraft={updateDraft} errors={errors} /></div>
+              <div className={cn(currentStep === 3 ? 'block' : 'hidden')}><ProductPriceLocationStep draft={draft} updateDraft={updateDraft} errors={errors} canManageStock={Boolean(auth.user?.canManageStock)} /></div>
               <div className={cn(currentStep === 4 ? 'block' : 'hidden')}><ProductPreviewStep draft={draft} onBack={() => goToStep(3)} onPublish={publishProduct} submitting={submitting} /></div>
               {errors.submit ? <p role="alert" className="mt-5 rounded-lg bg-red-50 p-4 text-sm font-bold text-fifow-red">{errors.submit}</p> : null}
               {uploadProgress ? <p role="status" className="mt-4 text-center text-sm font-bold text-fifow-primary">{uploadProgress}</p> : null}

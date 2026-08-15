@@ -6,6 +6,8 @@ export const queryKeys = {
   myProducts: ['products', 'mine'],
   favorites: ['favorites'],
   likes: ['likes'],
+  cart: ['cart'],
+  similarProducts: (productId) => ['products', productId, 'similar'],
   publicUser: (userId) => ['users', userId, 'public'],
   userReviews: (userId) => ['reviews', 'users', userId],
   conversations: ['conversations'],
