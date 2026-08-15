@@ -11,19 +11,22 @@ export default function OrderSummaryCard({ order }) {
   const isBuyer = order.role === 'buyer'
   const counterpart = isBuyer ? order.sellerName : order.buyerName
   const counterpartLabel = isBuyer ? 'Vendeur' : 'Acheteur'
+  const multipleItems = order.itemCount > 1
 
   return (
     <Card className="overflow-hidden p-4 transition hover:border-violet-200 hover:shadow-soft">
       <div className="grid gap-4 sm:grid-cols-[132px_minmax(0,1fr)_auto] sm:items-center">
-        <Link to={`/orders/${order.id}`} className="block overflow-hidden rounded-lg bg-slate-100">
+        <Link to={`/orders/${order.id}`} className="relative block overflow-hidden rounded-lg bg-slate-100">
           <img src={order.product?.image || order.image} alt={order.product?.title || order.productTitle} className="aspect-[4/3] h-full w-full object-cover sm:aspect-square" />
+          {multipleItems ? <span className="absolute bottom-2 right-2 rounded-full bg-slate-950/80 px-2.5 py-1 text-xs font-black text-white">+{order.itemCount - 1}</span> : null}
         </Link>
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <Badge variant={status.tone}>{status.shortLabel}</Badge>
             <span className="text-xs font-black uppercase text-fifow-muted">{isBuyer ? 'Achat' : 'Vente'}</span>
           </div>
-          <h2 className="mt-2 truncate text-lg font-black text-fifow-dark">{order.product?.title || order.productTitle}</h2>
+          <h2 className="mt-2 truncate text-lg font-black text-fifow-dark">{multipleItems ? `${order.itemCount} articles` : order.product?.title || order.productTitle}</h2>
+          {multipleItems ? <p className="mt-0.5 truncate text-xs font-bold text-fifow-muted">{order.items.map((item) => item.product.title).join(' · ')}</p> : null}
           <p className="mt-1 text-sm font-semibold text-fifow-secondary">{counterpartLabel} : {counterpart}</p>
           <p className="mt-1 text-lg font-black text-fifow-primary">{formatGNF(order.totalAmount)}</p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-bold text-fifow-muted">

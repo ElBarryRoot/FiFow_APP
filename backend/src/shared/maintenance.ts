@@ -1,6 +1,7 @@
 import { logger } from '../config/logger.js';
 import { prisma } from '../config/prisma.js';
 import { createNotification } from '../modules/notifications/notification.service.js';
+import { releaseOrderReservations } from '../modules/orders/inventory.service.js';
 import { emitBoostUpdated, emitOrderUpdated, emitToUser } from './realtime.js';
 
 let timer: NodeJS.Timeout | null = null;
@@ -66,10 +67,7 @@ async function runMaintenance() {
             version: { increment: 1 }
           }
         });
-        await tx.product.updateMany({
-          where: { id: order.productId, status: 'RESERVED', moderationStatus: 'APPROVED', archivedAt: null },
-          data: { status: 'AVAILABLE', reservedAt: null }
-        });
+        await releaseOrderReservations(tx, order.id, 'ORDER_TIMEOUT', now);
         await tx.orderStatusHistory.create({
           data: {
             orderId: order.id,

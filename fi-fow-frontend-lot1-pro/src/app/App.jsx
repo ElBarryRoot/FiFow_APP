@@ -32,6 +32,7 @@ const Conversation = lazy(() => import('../pages/messages/Conversation.jsx'))
 const Orders = lazy(() => import('../pages/orders/Orders.jsx'))
 const OrderDetail = lazy(() => import('../pages/orders/OrderDetail.jsx'))
 const BuyProduct = lazy(() => import('../pages/orders/BuyProduct.jsx'))
+const Cart = lazy(() => import('../pages/orders/Cart.jsx'))
 const Support = lazy(() => import('../pages/support/Support.jsx'))
 const SupportTicket = lazy(() => import('../pages/support/SupportTicket.jsx'))
 const ReportListing = lazy(() => import('../pages/support/ReportListing.jsx'))
@@ -81,6 +82,7 @@ export default function App() {
           <Route path="/messages/:id" element={<ProtectedRoute><Conversation /></ProtectedRoute>} />
           <Route path="/notifications" element={<ProtectedRoute><Notifications /></ProtectedRoute>} />
           <Route path="/orders" element={<ProtectedRoute><Orders /></ProtectedRoute>} />
+          <Route path="/cart" element={<ProtectedRoute><Cart /></ProtectedRoute>} />
           <Route path="/orders/:id" element={<ProtectedRoute><OrderDetail /></ProtectedRoute>} />
           <Route path="/settings" element={<ProtectedRoute><AccountSettings /></ProtectedRoute>} />
           <Route path="/settings/password" element={<ProtectedRoute><ChangePassword /></ProtectedRoute>} />

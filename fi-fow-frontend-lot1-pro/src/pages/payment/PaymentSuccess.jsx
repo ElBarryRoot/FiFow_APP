@@ -26,6 +26,7 @@ export default function PaymentSuccess() {
       sessionStorage.removeItem(`fifow:payment-key:${orderId}`)
       queryClient.invalidateQueries({ queryKey: queryKeys.order(orderId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cart })
     }
     queryClient.invalidateQueries({ queryKey: queryKeys.boosts })
   }, [orderId, payment?.status, queryClient])

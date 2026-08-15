@@ -5,9 +5,36 @@ const phone = z.string().trim().regex(/^\+?[0-9]{8,20}$/);
 const optionalInstructions = z.string().trim().min(2).max(500).optional();
 
 const quoteBase = {
-  productId: uuid,
-  offerId: uuid.optional()
+  productId: uuid.optional(),
+  offerId: uuid.optional(),
+  items: z.array(z.object({
+    productId: uuid,
+    quantity: z.coerce.number().int().min(1).max(99)
+  }).strict()).min(1).max(20).optional()
 };
+
+function validateQuoteProducts(
+  body: { productId?: string | undefined; offerId?: string | undefined; items?: { productId: string; quantity: number }[] | undefined },
+  context: z.RefinementCtx
+) {
+  if (Boolean(body.productId) === Boolean(body.items)) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['items'],
+      message: 'Fournissez un produit ou une liste d’articles, pas les deux.'
+    });
+  }
+  if (body.items && new Set(body.items.map((item) => item.productId)).size !== body.items.length) {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['items'], message: 'Un produit apparaît plusieurs fois.' });
+  }
+  if (body.offerId && body.items) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['offerId'],
+      message: 'Une offre négociée s’applique uniquement à un achat direct.'
+    });
+  }
+}
 
 export const quoteSchema = z.object({
   body: z.discriminatedUnion('handoverMode', [
@@ -39,7 +66,7 @@ export const quoteSchema = z.object({
         phone
       }).strict()
     }).strict()
-  ]),
+  ]).superRefine(validateQuoteProducts),
   params: z.object({}),
   query: z.object({})
 });

@@ -48,7 +48,7 @@ function Identity({ value, snapshot }) {
   const source = value || snapshot || {}
   return <div><p className="font-bold text-fifow-dark">{source.fullName || source.name || 'Utilisateur'}</p>{source.email ? <p className="text-xs text-fifow-muted">{source.email}</p> : null}</div>
 }
-function productTitle(row) { return row.product?.title || row.productSnapshot?.title || 'Produit indisponible' }
+function productTitle(row) { const count = row._count?.items || row.items?.length || 0; return count > 1 ? `${count} articles` : row.product?.title || row.productSnapshot?.title || 'Produit indisponible' }
 function handoverLabel(value) { return ({ HAND_TO_HAND: 'Main propre', HOME_DELIVERY: 'Domicile', PICKUP_POINT: 'Point relais' })[value] || value || '—' }
 
 export { handoverLabel, productTitle }

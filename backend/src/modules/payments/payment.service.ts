@@ -10,6 +10,10 @@ import {
   emitPayoutUpdated
 } from '../../shared/realtime.js';
 import { createNotification } from '../notifications/notification.service.js';
+import {
+  consumeOrderReservations,
+  restoreConsumedOrderInventory
+} from '../orders/inventory.service.js';
 import { verifyWebhookSignature } from './webhook-signature.js';
 
 const providerMap = {
@@ -121,9 +125,15 @@ export const paymentService = {
             status: 'AWAITING_PAYMENT',
             OR: [{ paymentExpiresAt: null }, { paymentExpiresAt: { gt: new Date() } }]
           },
-          select: { id: true, totalAmount: true, currency: true }
+          select: { id: true, totalAmount: true, currency: true, _count: { select: { items: true } } }
         });
         if (!order) throw new ApiError(409, 'Commande non payable.', 'ORDER_NOT_PAYABLE');
+        const activeReservations = await tx.inventoryReservation.count({
+          where: { orderItem: { orderId }, status: 'ACTIVE', expiresAt: { gt: new Date() } }
+        });
+        if (activeReservations !== order._count.items) {
+          throw new ApiError(409, 'Le stock réservé a expiré.', 'INVENTORY_RESERVATION_EXPIRED');
+        }
         const active = await tx.payment.findFirst({
           where: { orderId, status: { in: ['CREATED', 'PROCESSING'] } },
           select: { id: true }
@@ -446,10 +456,7 @@ export const paymentService = {
           data: { status: 'CANCELLED', availableAt: null }
         });
         if (['PAID', 'PREPARING', 'READY_FOR_HANDOVER'].includes(previousStatus)) {
-          await tx.product.updateMany({
-            where: { id: refund.order.productId, status: 'RESERVED', moderationStatus: 'APPROVED', archivedAt: null },
-            data: { status: 'AVAILABLE', reservedAt: null }
-          });
+          await restoreConsumedOrderInventory(tx, refund.order.id, 'ORDER_FULLY_REFUNDED', processedAt);
         }
         await tx.orderStatusHistory.create({
           data: {
@@ -639,15 +646,8 @@ export const paymentService = {
       if (!payment.order || payment.order.status !== 'AWAITING_PAYMENT') {
         throw new ApiError(409, 'État de commande incompatible avec le paiement.', 'PAYMENT_ORDER_CONFLICT');
       }
-      await tx.$queryRaw`SELECT id FROM products WHERE id = ${payment.order.productId}::uuid FOR UPDATE`;
-      const payableProduct = await tx.product.findUnique({
-        where: { id: payment.order.productId },
-        select: { status: true }
-      });
-      if (payableProduct?.status !== 'RESERVED') {
-        throw new ApiError(409, 'Annonce incompatible avec le paiement.', 'PAYMENT_PRODUCT_CONFLICT');
-      }
       const now = new Date();
+      await consumeOrderReservations(tx, payment.order.id, now);
       await tx.payment.update({
         where: { id: payment.id },
         data: {
@@ -663,10 +663,6 @@ export const paymentService = {
       await tx.order.update({
         where: { id: payment.order.id },
         data: { status: 'PAID', paidAt: now, paymentExpiresAt: null, version: { increment: 1 } }
-      });
-      await tx.product.update({
-        where: { id: payment.order.productId },
-        data: { status: 'RESERVED', reservedAt: now }
       });
       await tx.orderStatusHistory.create({
         data: {

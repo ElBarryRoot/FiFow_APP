@@ -69,15 +69,9 @@ export default function OrderDetail() {
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_370px]">
         <div className="space-y-5">
           <Card className="p-5 sm:p-6">
-            <div className="grid gap-5 sm:grid-cols-[160px_minmax(0,1fr)]">
-              <Link to={`/products/${product.slug}`} className="overflow-hidden rounded-lg bg-slate-100"><img src={product.image} alt={product.title} className="aspect-square h-full w-full object-cover" /></Link>
-              <div className="min-w-0">
-                <h2 className="text-xl font-black text-fifow-dark sm:text-2xl">{product.title}</h2>
-                <p className="mt-2 text-xl font-black text-fifow-primary">{formatGNF(order.itemAmount)}</p>
-                <p className="mt-4 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><UserRound className="h-4 w-4 text-fifow-primary" /> Avec {counterpart.name}</p>
-                <p className="mt-2 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {handoverLabels[order.handoverMode] || order.handoverMode}</p>
-              </div>
-            </div>
+            <div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-lg font-black text-fifow-dark">{order.itemCount > 1 ? `${order.itemCount} articles` : 'Article commandé'}</h2><p className="mt-1 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><UserRound className="h-4 w-4 text-fifow-primary" /> Avec {counterpart.name}</p></div><p className="text-xl font-black text-fifow-primary">{formatGNF(order.itemAmount)}</p></div>
+            <div className="mt-4 divide-y divide-fifow-border border-y border-fifow-border">{(order.items?.length ? order.items : [{ id: product.id, quantity: 1, lineTotal: order.itemAmount, product }]).map((item) => <div key={item.id} className="grid grid-cols-[72px_minmax(0,1fr)_auto] items-center gap-3 py-4"><Link to={`/products/${item.product.slug}`} className="overflow-hidden rounded-lg bg-slate-100"><img src={item.product.image} alt="" className="aspect-square h-full w-full object-cover" /></Link><div className="min-w-0"><p className="line-clamp-2 text-sm font-black text-fifow-dark">{item.product.title}</p><p className="mt-1 text-xs font-bold text-fifow-secondary">Quantité : {item.quantity}</p></div><p className="whitespace-nowrap text-sm font-black text-fifow-dark">{formatGNF(item.lineTotal)}</p></div>)}</div>
+            <p className="mt-4 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {handoverLabels[order.handoverMode] || order.handoverMode}</p>
           </Card>
 
           <Card className="p-5 sm:p-6">
@@ -103,7 +97,7 @@ export default function OrderDetail() {
           <Card className="p-5">
             <h2 className="flex items-center gap-2 text-lg font-black text-fifow-dark"><ReceiptText className="h-5 w-5 text-fifow-primary" /> Récapitulatif</h2>
             <dl className="mt-4 space-y-3 text-sm font-semibold text-fifow-secondary">
-              <AmountItem label="Produit" value={order.itemAmount} />
+              <AmountItem label={order.itemCount > 1 ? `Articles (${order.itemCount})` : 'Produit'} value={order.itemAmount} />
               <AmountItem label="Protection de la transaction" value={order.buyerProtectionFee} />
               <AmountItem label="Livraison" value={order.deliveryFee} />
               {Number(order.discountAmount || 0) ? <AmountItem label="Réduction" value={-order.discountAmount} /> : null}

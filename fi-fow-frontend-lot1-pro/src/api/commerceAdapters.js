@@ -102,6 +102,12 @@ export function toQuoteView(quote) {
     discountAmount: toNumber(quote.discountAmount),
     totalAmount: toNumber(quote.totalAmount),
     sellerNetAmount: toNumber(quote.sellerNetAmount),
+    items: Array.isArray(quote.items) ? quote.items.map((item) => ({
+      ...item,
+      quantity: toNumber(item.quantity),
+      unitPrice: toNumber(item.unitPrice),
+      lineTotal: toNumber(item.lineTotal),
+    })) : [],
   }
 }
 
@@ -125,6 +131,17 @@ export function toOrderView(order, currentUserId) {
   const sellerId = order.sellerId || seller.id
   const buyerId = order.buyerId || buyer.id
   const statusHistory = Array.isArray(order.statusHistory) ? order.statusHistory : []
+  const items = Array.isArray(order.items) ? order.items.map((item) => ({
+    ...item,
+    quantity: toNumber(item.quantity),
+    unitPrice: toNumber(item.unitPrice),
+    lineTotal: toNumber(item.lineTotal),
+    product: {
+      ...asObject(item.productSnapshot),
+      ...asObject(item.product),
+      image: item.product?.imageUrl || asObject(item.productSnapshot).imageUrl || defaultProductImage,
+    },
+  })) : []
 
   return {
     ...order,
@@ -135,6 +152,9 @@ export function toOrderView(order, currentUserId) {
     totalAmount: toNumber(order.totalAmount),
     sellerNetAmount: toNumber(order.sellerNetAmount),
     product,
+    items,
+    itemCount: toNumber(order.itemCount || items.length),
+    totalQuantity: toNumber(order.totalQuantity || items.reduce((total, item) => total + item.quantity, 0)),
     sellerId,
     buyerId,
     productTitle: product.title,

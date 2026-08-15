@@ -11,6 +11,9 @@ import {
   toOrderSummaryDto
 } from './order.dto.js';
 import type { QuoteBody } from './order.schemas.js';
+import { isProductSellable } from './inventory.service.js';
+
+const MAX_SAFE_TRANSACTION_AMOUNT = BigInt(Number.MAX_SAFE_INTEGER);
 
 function reference() {
   return `FF-${Date.now().toString(36).toUpperCase()}-${randomBytes(4).toString('hex').toUpperCase()}`;
@@ -47,8 +50,11 @@ export const orderService = {
   },
 
   async quote(userId: string, body: QuoteBody) {
-    const product = await prisma.product.findFirst({
-      where: { id: body.productId, status: 'AVAILABLE', moderationStatus: 'APPROVED', archivedAt: null },
+    const requestedItems = body.items ?? [{ productId: body.productId!, quantity: 1 }];
+    const requestedById = new Map(requestedItems.map((item) => [item.productId, item]));
+    const productIds = requestedItems.map((item) => item.productId);
+    const products = await prisma.product.findMany({
+      where: { id: { in: productIds } },
       include: {
         seller: { select: { id: true, fullName: true } },
         images: {
@@ -59,60 +65,61 @@ export const orderService = {
         }
       }
     });
-    if (!product) throw new ApiError(404, 'Annonce indisponible.', 'PRODUCT_NOT_AVAILABLE');
-    if (product.sellerId === userId) {
-      throw new ApiError(400, 'Achat de sa propre annonce interdit.', 'OWN_PRODUCT');
+    if (products.length !== requestedItems.length) {
+      throw new ApiError(404, 'Une annonce est indisponible.', 'PRODUCT_NOT_AVAILABLE');
     }
-    if (!product.handoverModes.includes(body.handoverMode)) {
-      throw new ApiError(400, 'Mode de remise indisponible.', 'INVALID_HANDOVER_MODE');
+    const productsById = new Map(products.map((product) => [product.id, product]));
+    const orderedProducts = productIds.map((id) => productsById.get(id)!);
+    const sellerId = orderedProducts[0]!.sellerId;
+    if (orderedProducts.some((product) => product.sellerId !== sellerId)) {
+      throw new ApiError(400, 'Une commande doit contenir les articles d’un seul vendeur.', 'MULTIPLE_SELLERS_NOT_ALLOWED');
+    }
+    if (sellerId === userId) throw new ApiError(400, 'Achat de sa propre annonce interdit.', 'OWN_PRODUCT');
+
+    for (const product of orderedProducts) {
+      const quantity = requestedById.get(product.id)!.quantity;
+      if (!isProductSellable(product) || product.stockQuantity - product.reservedQuantity < quantity) {
+        throw new ApiError(409, `« ${product.title} » n’est plus disponible dans cette quantité.`, 'PRODUCT_NOT_AVAILABLE');
+      }
+      if (product.listingMode !== 'STOCK' && quantity !== 1) {
+        throw new ApiError(400, 'Un article unique ou un lot ne peut être acheté qu’une fois.', 'INVALID_ITEM_QUANTITY');
+      }
+      if (!product.handoverModes.includes(body.handoverMode)) {
+        throw new ApiError(400, `Le mode de remise n’est pas proposé pour « ${product.title} ».`, 'INVALID_HANDOVER_MODE');
+      }
     }
 
     const blocked = await prisma.userBlock.findFirst({
-      where: {
-        OR: [
-          { blockerId: userId, blockedId: product.sellerId },
-          { blockerId: product.sellerId, blockedId: userId }
-        ]
-      },
+      where: { OR: [{ blockerId: userId, blockedId: sellerId }, { blockerId: sellerId, blockedId: userId }] },
       select: { id: true }
     });
     if (blocked) throw new ApiError(403, 'Interaction impossible.', 'USER_BLOCKED');
 
-    const activeOrder = await prisma.order.findFirst({
-      where: {
-        productId: product.id,
-        status: {
-          in: [
-            'AWAITING_SELLER_CONFIRMATION', 'AWAITING_PAYMENT', 'PAID', 'RESERVED', 'PREPARING',
-            'READY_FOR_HANDOVER', 'IN_DELIVERY', 'RECEIVED', 'DISPUTED'
-          ]
-        }
-      },
-      select: { id: true }
-    });
-    if (activeOrder) {
-      throw new ApiError(409, 'Cette annonce est deja reservee.', 'PRODUCT_ALREADY_IN_ACTIVE_ORDER');
-    }
-
-    let itemAmount = product.price;
+    let negotiatedAmount: bigint | null = null;
     if (body.offerId) {
+      const onlyProduct = orderedProducts[0]!;
       const offer = await prisma.offer.findFirst({
         where: {
           id: body.offerId,
-          productId: product.id,
+          productId: onlyProduct.id,
           status: 'ACCEPTED',
           handoverMode: body.handoverMode,
           acceptedOrder: null,
-          conversation: { buyerId: userId, sellerId: product.sellerId, status: 'ACTIVE' },
+          conversation: { buyerId: userId, sellerId, status: 'ACTIVE' },
           OR: [{ creatorId: userId }, { recipientId: userId }]
         },
         select: { amount: true }
       });
-      if (!offer) {
-        throw new ApiError(400, 'Offre acceptee invalide.', 'INVALID_ACCEPTED_OFFER');
-      }
-      itemAmount = offer.amount;
+      if (!offer) throw new ApiError(400, 'Offre acceptée invalide.', 'INVALID_ACCEPTED_OFFER');
+      negotiatedAmount = offer.amount;
     }
+
+    const lines = orderedProducts.map((product) => {
+      const quantity = requestedById.get(product.id)!.quantity;
+      const unitPrice = negotiatedAmount ?? product.price;
+      return { product, quantity, unitPrice, lineTotal: unitPrice * BigInt(quantity) };
+    });
+    const itemAmount = lines.reduce((total, line) => total + line.lineTotal, 0n);
 
     const [fixedFee, rateBps, homeDeliveryFee, pickupFee, termsVersion, policyVersion] = await Promise.all([
       numericSetting('buyer_protection_fixed_fee', 5_000, 0, 1_000_000_000),
@@ -129,10 +136,18 @@ export const orderService = {
         ? BigInt(pickupFee)
         : 0n;
     const totalAmount = itemAmount + buyerProtectionFee + deliveryFee;
+    if (totalAmount > MAX_SAFE_TRANSACTION_AMOUNT) {
+      throw new ApiError(
+        400,
+        'Le montant de cette commande dépasse la limite autorisée.',
+        'ORDER_AMOUNT_TOO_LARGE'
+      );
+    }
+    const firstLine = lines[0]!;
     const quote = await prisma.checkoutQuote.create({
       data: {
         buyerId: userId,
-        productId: product.id,
+        productId: firstLine.product.id,
         ...(body.offerId ? { offerId: body.offerId } : {}),
         itemAmount,
         buyerProtectionFee,
@@ -143,19 +158,51 @@ export const orderService = {
         handoverDetails: body.handoverDetails as Prisma.InputJsonValue,
         feePolicyVersion: policyVersion,
         termsVersion,
-        expiresAt: new Date(Date.now() + 15 * 60_000)
+        expiresAt: new Date(Date.now() + 15 * 60_000),
+        items: {
+          create: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({
+            productId: product.id,
+            ...(body.offerId ? { offerId: body.offerId } : {}),
+            quantity,
+            unitPrice,
+            lineTotal,
+            productSnapshot: {
+              id: product.id,
+              title: product.title,
+              slug: product.slug,
+              description: product.description,
+              unitPrice: unitPrice.toString(),
+              currency: product.currency,
+              listingMode: product.listingMode,
+              imageKey: product.images[0]?.storageKey ?? null
+            }
+          }))
+        }
       }
     });
-    const imageKey = product.images[0]?.storageKey;
+    const imageKey = firstLine.product.images[0]?.storageKey;
     return {
       id: quote.id,
       product: {
-        id: product.id,
-        title: product.title,
-        slug: product.slug,
-        seller: product.seller,
+        id: firstLine.product.id,
+        title: firstLine.product.title,
+        slug: firstLine.product.slug,
+        seller: firstLine.product.seller,
         imageUrl: imageKey ? getStorage().publicUrl(imageKey) : null
       },
+      seller: firstLine.product.seller,
+      items: lines.map(({ product, quantity, unitPrice, lineTotal }) => ({
+        product: {
+          id: product.id,
+          title: product.title,
+          slug: product.slug,
+          listingMode: product.listingMode,
+          imageUrl: product.images[0]?.storageKey ? getStorage().publicUrl(product.images[0].storageKey) : null
+        },
+        quantity,
+        unitPrice: unitPrice.toString(),
+        lineTotal: lineTotal.toString()
+      })),
       offerId: quote.offerId,
       handoverMode: quote.handoverMode,
       handoverDetails: quote.handoverDetails,
@@ -209,25 +256,52 @@ export const orderService = {
           return duplicate.id;
         }
         const quote = await tx.checkoutQuote.findFirst({
-          where: { id: input.quoteId, buyerId: userId, consumedAt: null, expiresAt: { gt: new Date() } }
+          where: { id: input.quoteId, buyerId: userId, consumedAt: null, expiresAt: { gt: new Date() } },
+          include: {
+            items: {
+              orderBy: { createdAt: 'asc' },
+              include: { product: { include: { seller: { select: { id: true, fullName: true } } } } }
+            }
+          }
         });
         if (!quote) throw new ApiError(409, 'Devis invalide ou expire.', 'QUOTE_NOT_AVAILABLE');
-
-        await tx.$queryRaw`SELECT id FROM products WHERE id = ${quote.productId}::uuid FOR UPDATE`;
-        const product = await tx.product.findUnique({
-          where: { id: quote.productId },
+        if (quote.items.length === 0) throw new ApiError(409, 'Devis incomplet.', 'QUOTE_ITEMS_MISSING');
+        const productIds = quote.items.map((item) => item.productId);
+        for (const productId of [...productIds].sort()) {
+          await tx.$queryRaw`SELECT id FROM products WHERE id = ${productId}::uuid FOR UPDATE`;
+        }
+        const products = await tx.product.findMany({
+          where: { id: { in: productIds } },
           include: { seller: { select: { id: true, fullName: true } } }
         });
-        if (!product || product.status !== 'AVAILABLE' || product.moderationStatus !== 'APPROVED') {
-          throw new ApiError(409, 'Annonce devenue indisponible.', 'PRODUCT_NOT_AVAILABLE');
+        const productsById = new Map(products.map((product) => [product.id, product]));
+        const firstProduct = productsById.get(quote.items[0]!.productId);
+        if (!firstProduct || products.length !== quote.items.length) {
+          throw new ApiError(409, 'Une annonce est devenue indisponible.', 'PRODUCT_NOT_AVAILABLE');
+        }
+        for (const item of quote.items) {
+          const product = productsById.get(item.productId)!;
+          if (
+            product.sellerId !== firstProduct.sellerId ||
+            !isProductSellable(product) ||
+            product.stockQuantity - product.reservedQuantity < item.quantity
+          ) {
+            throw new ApiError(409, `« ${product.title} » n’est plus disponible.`, 'PRODUCT_NOT_AVAILABLE');
+          }
+          if (product.listingMode !== 'STOCK' && item.quantity !== 1) {
+            throw new ApiError(409, 'Quantité du devis invalide.', 'INVALID_ITEM_QUANTITY');
+          }
         }
         if (input.conversationId) {
+          if (quote.items.length !== 1) {
+            throw new ApiError(400, 'Une conversation ne peut être liée qu’à un achat direct.', 'INVALID_CONVERSATION');
+          }
           const conversation = await tx.conversation.findFirst({
             where: {
               id: input.conversationId,
-              productId: quote.productId,
+              productId: firstProduct.id,
               buyerId: userId,
-              sellerId: product.sellerId
+              sellerId: firstProduct.sellerId
             },
             select: { id: true }
           });
@@ -248,14 +322,15 @@ export const orderService = {
                 pickupLocation: String(details['meetingLocation'])
               };
         const now = new Date();
+        const reservationExpiresAt = new Date(now.getTime() + confirmationMinutes * 60_000);
         const created = await tx.order.create({
           data: {
             reference: reference(),
             idempotencyKey,
-            productId: quote.productId,
+            productId: firstProduct.id,
             buyerId: userId,
-            sellerId: product.sellerId,
-            sellerConfirmationExpiresAt: new Date(now.getTime() + confirmationMinutes * 60_000),
+            sellerId: firstProduct.sellerId,
+            sellerConfirmationExpiresAt: reservationExpiresAt,
             ...(input.conversationId ? { conversationId: input.conversationId } : {}),
             acceptedOfferId: quote.offerId,
             quoteId: quote.id,
@@ -269,14 +344,25 @@ export const orderService = {
             sellerNetAmount: quote.sellerNetAmount,
             feePolicyVersion: quote.feePolicyVersion,
             termsVersion: quote.termsVersion,
-            productSnapshot: {
-              id: product.id,
-              title: product.title,
-              slug: product.slug,
-              price: product.price.toString()
-            },
+            productSnapshot: quote.items[0]!.productSnapshot as Prisma.InputJsonValue,
             buyerSnapshot: { id: userId },
-            sellerSnapshot: { id: product.seller.id, fullName: product.seller.fullName },
+            sellerSnapshot: { id: firstProduct.seller.id, fullName: firstProduct.seller.fullName },
+            items: {
+              create: quote.items.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                unitPrice: item.unitPrice,
+                lineTotal: item.lineTotal,
+                productSnapshot: item.productSnapshot as Prisma.InputJsonValue,
+                reservation: {
+                  create: {
+                    productId: item.productId,
+                    quantity: item.quantity,
+                    expiresAt: reservationExpiresAt
+                  }
+                }
+              }))
+            },
             statusHistory: {
               create: { actorId: userId, actorType: 'BUYER', toStatus: 'AWAITING_SELLER_CONFIRMATION' }
             },
@@ -289,16 +375,29 @@ export const orderService = {
             }
           }
         });
-        await tx.product.update({
-          where: { id: product.id },
-          data: { status: 'RESERVED', reservedAt: now }
-        });
+        for (const item of quote.items) {
+          const product = productsById.get(item.productId)!;
+          const reservedQuantity = product.reservedQuantity + item.quantity;
+          await tx.product.update({
+            where: { id: product.id },
+            data: {
+              reservedQuantity,
+              reservedAt: now,
+              status: product.stockQuantity - reservedQuantity > 0 ? 'AVAILABLE' : 'RESERVED'
+            }
+          });
+        }
         await tx.checkoutQuote.update({ where: { id: quote.id }, data: { consumedAt: now } });
+        await tx.cartItem.deleteMany({
+          where: { cart: { buyerId: userId }, productId: { in: productIds } }
+        });
         await createNotification({
           userId: created.sellerId,
           type: 'ORDER_CREATED',
           title: 'Nouvelle commande',
-          body: 'Un acheteur attend votre confirmation.',
+          body: quote.items.length > 1
+            ? `Un acheteur attend votre confirmation pour ${quote.items.length} articles.`
+            : 'Un acheteur attend votre confirmation.',
           data: { orderId: created.id }
         }, tx);
         return created.id;

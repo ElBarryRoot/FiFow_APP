@@ -9,8 +9,14 @@ export function formatAdminDate(value, options = {}) {
 }
 
 export function formatAdminMoney(value) {
-  const amount = Number(value || 0)
-  return `${new Intl.NumberFormat('fr-FR').format(Number.isFinite(amount) ? amount : 0)} GNF`
+  const amount = typeof value === 'string' && /^-?\d+$/.test(value.trim())
+    ? BigInt(value.trim())
+    : typeof value === 'bigint'
+      ? value
+      : Number.isFinite(Number(value))
+        ? Number(value)
+        : 0
+  return `${new Intl.NumberFormat('fr-FR').format(amount)} GNF`
 }
 
 export function shortId(value) {
@@ -21,4 +27,3 @@ export function shortId(value) {
 export function flattenAdminPages(data) {
   return data?.pages?.flatMap((page) => page.items || []) || []
 }
-

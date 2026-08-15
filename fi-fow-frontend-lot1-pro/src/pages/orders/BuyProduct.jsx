@@ -3,6 +3,7 @@ import { ArrowLeft, Check, Handshake, Home, MapPinned, ShieldCheck, ShoppingBag,
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import { catalogueApi } from '../../api/catalogue.js'
+import { cartApi } from '../../api/cart.js'
 import { createIdempotencyKey } from '../../api/commerceAdapters.js'
 import { errorMessage } from '../../api/errors.js'
 import { ordersApi } from '../../api/orders.js'
@@ -35,6 +36,14 @@ export default function BuyProduct() {
   const offerId = searchParams.get('offerId') || undefined
   const conversationId = searchParams.get('conversationId') || undefined
   const requestedMode = searchParams.get('handoverMode') || ''
+  const cartSellerId = searchParams.get('cartSeller') || ''
+  const cartQuery = useQuery({
+    queryKey: queryKeys.cart,
+    queryFn: cartApi.get,
+    enabled: Boolean(cartSellerId),
+  })
+  const cartGroup = location.state?.cartGroup || cartQuery.data?.groups?.find((group) => group.seller.id === cartSellerId)
+  const multiItem = Boolean(cartGroup?.items?.length)
   const initialProduct = location.state?.product
   const productQuery = useQuery({
     queryKey: queryKeys.product(id),
@@ -43,7 +52,11 @@ export default function BuyProduct() {
     enabled: Boolean(id),
   })
   const product = productQuery.data
-  const allowedModes = product?.handoverModes || []
+  const allowedModes = useMemo(() => {
+    if (!multiItem) return product?.handoverModes || []
+    const [first, ...rest] = cartGroup.items
+    return (first?.product?.handoverModes || []).filter((mode) => rest.every((item) => item.product.handoverModes?.includes(mode)))
+  }, [cartGroup, multiItem, product?.handoverModes])
   const [handoverMode, setHandoverMode] = useState('')
   const [details, setDetails] = useState(() => ({
     recipientName: auth.user?.fullName || '',
@@ -90,6 +103,7 @@ export default function BuyProduct() {
       if (offerId) sessionStorage.setItem(`fifow:offer-order:${offerId}`, order.id)
       if (conversationId) queryClient.invalidateQueries({ queryKey: queryKeys.conversation(conversationId) })
       queryClient.invalidateQueries({ queryKey: queryKeys.orders })
+      queryClient.invalidateQueries({ queryKey: queryKeys.cart })
       navigate(`/orders/${order.id}`, { replace: true })
     },
   })
@@ -121,29 +135,38 @@ export default function BuyProduct() {
     setValidationError('')
   }
 
+  function quoteInput() {
+    return {
+      ...(multiItem
+        ? { items: cartGroup.items.map((item) => ({ productId: item.product.id, quantity: item.quantity })) }
+        : { productId: product.id, ...(offerId ? { offerId } : {}) }),
+      handoverMode,
+      handoverDetails,
+    }
+  }
+
   function requestQuote(event) {
-    event.preventDefault()
+    event?.preventDefault()
     const error = validateHandover(handoverMode, handoverDetails)
     if (error) {
       setValidationError(error)
       return
     }
     setValidationError('')
-    quoteMutation.mutate({
-      productId: product.id,
-      ...(offerId ? { offerId } : {}),
-      handoverMode,
-      handoverDetails,
-    })
+    quoteMutation.mutate(quoteInput())
   }
 
-  if (productQuery.isLoading) return <CommerceLoader onBack={() => navigate(-1)} />
+  if (productQuery.isLoading || (cartSellerId && cartQuery.isLoading && !cartGroup)) return <CommerceLoader onBack={() => navigate(-1)} />
   if (productQuery.isError || !product) {
     return (
       <CommerceShell onBack={() => navigate(-1)}>
         <ErrorBlock title="Produit indisponible" message={errorMessage(productQuery.error, 'Cette annonce ne peut pas être achetée actuellement.')} onRetry={productQuery.refetch} />
       </CommerceShell>
     )
+  }
+
+  if (cartSellerId && !cartGroup) {
+    return <CommerceShell onBack={() => navigate('/cart')}><ErrorBlock title="Groupe introuvable" message="Ce groupe de panier est vide ou n’est plus disponible." /></CommerceShell>
   }
 
   if (auth.user?.id === product.seller?.id) {
@@ -154,11 +177,19 @@ export default function BuyProduct() {
     )
   }
 
+  if (multiItem && !allowedModes.length) {
+    return <CommerceShell onBack={() => navigate('/cart')}><ErrorBlock title="Remise incompatible" message="Ces annonces n’ont aucun mode de remise en commun. Retirez un article ou commandez-le séparément." /></CommerceShell>
+  }
+
+  if (multiItem && !cartGroup.canCheckout) {
+    return <CommerceShell onBack={() => navigate('/cart')}><ErrorBlock title="Panier à actualiser" message="Au moins une annonce n’est plus disponible dans la quantité demandée. Modifiez ce groupe avant de continuer." /></CommerceShell>
+  }
+
   return (
     <CommerceShell onBack={() => navigate(-1)}>
       <div className="mb-6">
         <p className="text-xs font-black uppercase text-fifow-primary">Achat sécurisé</p>
-        <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">Finaliser l'achat en toute confiance</h1>
+        <h1 className="mt-1 text-2xl font-black text-fifow-dark sm:text-3xl">{multiItem ? `Finaliser ${cartGroup.items.length} articles` : "Finaliser l'achat en toute confiance"}</h1>
         <p className="mt-2 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">Fi Fow calcule le montant exact, garde un suivi clair et vous guide jusqu'à la confirmation de réception.</p>
       </div>
 
@@ -201,7 +232,7 @@ export default function BuyProduct() {
                 {validationError ? <p className="mt-4 text-sm font-bold text-fifow-red" role="alert">{validationError}</p> : null}
               </Card>
 
-              {quoteMutation.isError ? <ErrorBlock title="Devis impossible" message={errorMessage(quoteMutation.error)} onRetry={() => quoteMutation.mutate({ productId: product.id, ...(offerId ? { offerId } : {}), handoverMode, handoverDetails })} /> : null}
+              {quoteMutation.isError ? <ErrorBlock title="Devis impossible" message={errorMessage(quoteMutation.error)} onRetry={() => requestQuote()} /> : null}
               <Button type="submit" size="lg" className="w-full sm:w-auto" icon={ShoppingBag} loading={quoteMutation.isPending}>Calculer mon récapitulatif</Button>
             </form>
           ) : (
@@ -215,7 +246,7 @@ export default function BuyProduct() {
                 <Button type="button" variant="secondary" size="sm" icon={ArrowLeft} onClick={() => setQuote(null)}>Modifier</Button>
               </div>
               <div className="mt-6 space-y-3 border-y border-fifow-border py-5 text-sm font-semibold text-fifow-secondary">
-                <AmountRow label="Prix de l’article" value={quote.itemAmount} />
+                <AmountRow label={quote.items?.length > 1 ? `Articles (${quote.items.length})` : "Prix de l’article"} value={quote.itemAmount} />
                 <AmountRow label="Protection de votre achat" value={quote.buyerProtectionFee} helper="Paiement sécurisé, suivi de la commande et assistance en cas de problème." />
                 <AmountRow label="Livraison" value={quote.deliveryFee} zeroLabel="Offerte" />
                 {Number(quote.discountAmount || 0) > 0 ? <AmountRow label="Réduction" value={-Number(quote.discountAmount)} /> : null}
@@ -235,23 +266,32 @@ export default function BuyProduct() {
         </div>
 
         <aside className="space-y-4 lg:sticky lg:top-24">
-          <Card className="p-4">
-            <div className="flex gap-4">
-              <img src={product.image} alt={product.title} className="h-24 w-24 shrink-0 rounded-lg object-cover" />
-              <div className="min-w-0">
-                <Badge variant="success">{product.condition}</Badge>
-                <h2 className="mt-2 line-clamp-2 font-black text-fifow-dark">{product.title}</h2>
-                <p className="mt-1 text-lg font-black text-fifow-primary">{formatGNF(product.price)}</p>
-              </div>
-            </div>
-            <Link to={`/products/${product.slug}`} className="mt-4 block text-center text-sm font-black text-fifow-primary hover:underline">Revoir l’annonce</Link>
-          </Card>
+          <PurchaseSummary product={product} cartGroup={multiItem ? cartGroup : null} />
           <Card className="border-emerald-100 bg-fifow-mint p-4">
             <div className="flex gap-3"><ShieldCheck className="h-6 w-6 shrink-0 text-fifow-green" /><div><h2 className="font-black text-fifow-dark">Votre achat est protégé</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">Votre paiement reste suivi jusqu’à la confirmation de réception. Le montant de protection est calculé côté serveur.</p></div></div>
           </Card>
         </aside>
       </div>
     </CommerceShell>
+  )
+}
+
+function PurchaseSummary({ product, cartGroup }) {
+  return (
+    <Card className="p-4">
+      {cartGroup ? (
+        <div>
+          <div className="flex items-center justify-between gap-3"><h2 className="truncate font-black text-fifow-dark">Chez {cartGroup.seller.fullName}</h2><Badge variant="primary">{cartGroup.items.length} articles</Badge></div>
+          <div className="mt-3 divide-y divide-fifow-border">{cartGroup.items.map((item) => <div key={item.id} className="flex gap-3 py-3"><img src={item.product.imageUrl || '/assets/empty-product.svg'} alt="" className="h-14 w-14 rounded-lg object-cover" /><div className="min-w-0"><p className="line-clamp-1 text-sm font-black text-fifow-dark">{item.product.title}</p><p className="mt-1 text-xs font-bold text-fifow-secondary">{item.quantity} × {formatGNF(item.currentUnitPrice)}</p></div></div>)}</div>
+          <Link to="/cart" className="mt-3 block text-center text-sm font-black text-fifow-primary hover:underline">Modifier le panier</Link>
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-4"><img src={product.image} alt={product.title} className="h-24 w-24 shrink-0 rounded-lg object-cover" /><div className="min-w-0"><Badge variant="success">{product.condition}</Badge><h2 className="mt-2 line-clamp-2 font-black text-fifow-dark">{product.title}</h2><p className="mt-1 text-lg font-black text-fifow-primary">{formatGNF(product.price)}</p></div></div>
+          <Link to={`/products/${product.slug}`} className="mt-4 block text-center text-sm font-black text-fifow-primary hover:underline">Revoir l’annonce</Link>
+        </>
+      )}
+    </Card>
   )
 }
 

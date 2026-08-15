@@ -22,13 +22,14 @@ export default function AdminOrderDetail() {
         <Card className="p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-fifow-dark"><Package className="h-5 w-5 text-fifow-primary" />Transaction</h3>
           <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <Detail label="Produit" value={productTitle(order)} />
+            <Detail label={order.items?.length > 1 ? 'Articles' : 'Produit'} value={productTitle(order)} />
             <Detail label="Mode de remise" value={handoverLabel(order.handoverMode)} />
             <Detail label="Montant article" value={formatAdminMoney(order.itemAmount)} />
             <Detail label="Protection acheteur" value={formatAdminMoney(order.buyerProtectionFee)} />
             <Detail label="Livraison" value={formatAdminMoney(order.deliveryFee)} />
             <Detail label="Total payé" value={formatAdminMoney(order.totalAmount)} strong />
           </dl>
+          {order.items?.length > 1 ? <div className="mt-5 divide-y divide-fifow-border rounded-lg border border-fifow-border px-4">{order.items.map((item) => <div key={item.id} className="flex items-center justify-between gap-4 py-3"><div><p className="text-sm font-black text-fifow-dark">{item.product?.title || item.productSnapshot?.title}</p><p className="mt-0.5 text-xs font-bold text-fifow-secondary">Quantité {item.quantity}</p></div><p className="whitespace-nowrap text-sm font-black text-fifow-dark">{formatAdminMoney(item.lineTotal)}</p></div>)}</div> : null}
         </Card>
         <Card className="p-5">
           <h3 className="flex items-center gap-2 text-lg font-black text-fifow-dark"><UserRound className="h-5 w-5 text-fifow-primary" />Participants</h3>

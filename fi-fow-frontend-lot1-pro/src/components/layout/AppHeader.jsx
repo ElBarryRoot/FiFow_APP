@@ -1,4 +1,4 @@
-import { ArrowLeft, Bell, Heart, MailWarning, MapPin, MessageCircle, Plus, SlidersHorizontal, X } from 'lucide-react'
+import { ArrowLeft, Bell, Heart, MailWarning, MapPin, MessageCircle, Plus, ShoppingCart, SlidersHorizontal, X } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, NavLink } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
@@ -8,6 +8,7 @@ import { queryKeys } from '../../api/queryKeys.js'
 import { toUserView } from '../../api/adapters.js'
 import { useAuth } from '../../auth/AuthContext.jsx'
 import { authApi } from '../../api/auth.js'
+import { cartApi } from '../../api/cart.js'
 import { errorMessage } from '../../api/errors.js'
 import { useToast } from '../../lib/toast.jsx'
 import Button from '../ui/Button.jsx'
@@ -50,8 +51,15 @@ export default function AppHeader({
     enabled: isConnected,
     staleTime: 15_000,
   })
+  const cartQuery = useQuery({
+    queryKey: queryKeys.cart,
+    queryFn: cartApi.get,
+    enabled: isConnected,
+    staleTime: 20_000,
+  })
   const messagesCount = conversationsQuery.data?.unreadCount || 0
   const notificationsCount = notificationsQuery.data?.unreadCount || 0
+  const cartCount = cartQuery.data?.totalQuantity || 0
 
   async function resendVerification() {
     setResending(true)
@@ -111,6 +119,7 @@ export default function AppHeader({
             {isConnected ? (
               <>
                 <IconButton as={Link} to="/favorites" icon={Heart} label="Favoris" className="hidden sm:inline-flex" />
+                <IconButton as={Link} to="/cart" icon={ShoppingCart} label="Panier" badge={cartCount} />
                 <IconButton as={Link} to="/messages" icon={MessageCircle} label="Messages" badge={messagesCount} />
                 <IconButton as={Link} to="/notifications" icon={Bell} label="Notifications" badge={notificationsCount} />
                 {showPublish ? (

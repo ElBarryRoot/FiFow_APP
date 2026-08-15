@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Flag, Heart, MessageCircle, ShoppingBag, ThumbsUp } from 'lucide-react'
+import { Flag, Heart, MessageCircle, ShoppingBag, ShoppingCart, ThumbsUp } from 'lucide-react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { catalogueApi } from '../../api/catalogue.js'
+import { cartApi } from '../../api/cart.js'
 import { conversationsApi } from '../../api/conversations.js'
 import { errorMessage } from '../../api/errors.js'
 import { queryKeys } from '../../api/queryKeys.js'
@@ -34,6 +35,14 @@ export default function ProductActions({ product }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: queryKeys.likes }),
     onError: (error) => showToast(errorMessage(error, 'Action impossible.'), { type: 'error' }),
   })
+  const cartMutation = useMutation({
+    mutationFn: () => cartApi.add(product.id),
+    onSuccess: (cart) => {
+      queryClient.setQueryData(queryKeys.cart, cart)
+      showToast('Annonce ajoutée au panier', { type: 'success' })
+    },
+    onError: (error) => showToast(errorMessage(error, 'Ajout au panier impossible.'), { type: 'error' }),
+  })
 
   async function openConversation(intent) {
     if (!auth.isAuthenticated) {
@@ -51,6 +60,14 @@ export default function ProductActions({ product }) {
       return
     }
     navigate(destination, { state: { product } })
+  }
+
+  function addToCart() {
+    if (!auth.isAuthenticated) {
+      navigate('/login', { state: { from: location } })
+      return
+    }
+    cartMutation.mutate()
   }
 
   function toggleFavorite() {
@@ -74,9 +91,10 @@ export default function ProductActions({ product }) {
 
   return (
     <div className="space-y-3">
-      <div className="grid gap-2 sm:grid-cols-2">
-        <Button type="button" onClick={() => openConversation('contact')} loading={contactMutation.isPending} icon={MessageCircle} size="lg" variant="secondary" className="w-full">Contacter</Button>
+      <div className="grid grid-cols-2 gap-2">
         <Button type="button" onClick={startPurchase} icon={ShoppingBag} size="lg" className="w-full">Acheter</Button>
+        <Button type="button" onClick={addToCart} loading={cartMutation.isPending} icon={ShoppingCart} size="lg" variant="secondary" className="w-full">Au panier</Button>
+        <Button type="button" onClick={() => openConversation('contact')} loading={contactMutation.isPending} icon={MessageCircle} size="lg" variant="ghost" className="col-span-2 w-full border border-fifow-border">Contacter le vendeur</Button>
       </div>
       <div className="grid grid-cols-4 gap-2">
         <SmallAction icon={Heart} label="Favori" active={favorite} onClick={toggleFavorite} />

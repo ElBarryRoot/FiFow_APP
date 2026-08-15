@@ -39,6 +39,26 @@ export const orderDetailInclude = {
   },
   reviews: {
     select: { id: true, authorId: true, subjectId: true, rating: true, status: true, createdAt: true }
+  },
+  items: {
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      product: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          status: true,
+          listingMode: true,
+          images: {
+            where: { archivedAt: null },
+            orderBy: [{ isMain: 'desc' as const }, { sortOrder: 'asc' as const }],
+            take: 1,
+            select: { storageKey: true }
+          }
+        }
+      }
+    }
   }
 } satisfies Prisma.OrderInclude;
 
@@ -82,6 +102,26 @@ export const orderSummaryInclude = {
   reviews: {
     where: { status: { not: 'ARCHIVED' as const } },
     select: { id: true, authorId: true }
+  },
+  items: {
+    orderBy: { createdAt: 'asc' as const },
+    include: {
+      product: {
+        select: {
+          id: true,
+          title: true,
+          slug: true,
+          status: true,
+          listingMode: true,
+          images: {
+            where: { archivedAt: null },
+            orderBy: [{ isMain: 'desc' as const }, { sortOrder: 'asc' as const }],
+            take: 1,
+            select: { storageKey: true }
+          }
+        }
+      }
+    }
   }
 } satisfies Prisma.OrderInclude;
 
@@ -92,6 +132,25 @@ function userSummary(user: { id: string; fullName: string; avatarKey: string | n
     id: user.id,
     fullName: user.fullName,
     avatarUrl: user.avatarKey ? getStorage().publicUrl(user.avatarKey) : null
+  };
+}
+
+function orderItemDto(item: OrderWithDetails['items'][number] | OrderSummary['items'][number]) {
+  const imageKey = item.product.images[0]?.storageKey;
+  return {
+    id: item.id,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice.toString(),
+    lineTotal: item.lineTotal.toString(),
+    productSnapshot: item.productSnapshot,
+    product: {
+      id: item.product.id,
+      title: item.product.title,
+      slug: item.product.slug,
+      status: item.product.status,
+      listingMode: item.product.listingMode,
+      imageUrl: imageKey ? getStorage().publicUrl(imageKey) : null
+    }
   };
 }
 
@@ -145,6 +204,9 @@ export function toOrderDto(order: OrderWithDetails, userId: string) {
       status: order.product.status,
       imageUrl: mainImage ? getStorage().publicUrl(mainImage) : null
     },
+    items: order.items.map(orderItemDto),
+    itemCount: order.items.length,
+    totalQuantity: order.items.reduce((total, item) => total + item.quantity, 0),
     counterpart: userSummary(counterpart),
     buyer: userSummary(order.buyer),
     seller: {
@@ -208,6 +270,9 @@ export function toOrderSummaryDto(order: OrderSummary, userId: string) {
       status: order.product.status,
       imageUrl: mainImage ? getStorage().publicUrl(mainImage) : null
     },
+    items: order.items.map(orderItemDto),
+    itemCount: order.items.length,
+    totalQuantity: order.items.reduce((total, item) => total + item.quantity, 0),
     counterpart: userSummary(counterpart),
     buyer: userSummary(order.buyer),
     seller: {

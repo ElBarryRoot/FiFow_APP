@@ -9,6 +9,7 @@ import { authenticate, requireVerifiedEmail } from '../auth/auth.middleware.js';
 import { createNotification } from '../notifications/notification.service.js';
 import { emitOrderUpdated } from '../../shared/realtime.js';
 import { orderService } from './order.service.js';
+import { extendOrderReservations, releaseOrderReservations } from './inventory.service.js';
 import {
   createOrderSchema,
   listOrdersSchema,
@@ -86,6 +87,7 @@ orderRoutes.patch('/:orderId/seller-confirm', validate(orderIdSchema), asyncHand
     });
     if (changed.count !== 1) throw new ApiError(409, 'Commande déjà modifiée.', 'ORDER_VERSION_CONFLICT');
     const row = await tx.order.findUniqueOrThrow({ where: { id: current.id } });
+    await extendOrderReservations(tx, row.id, paymentExpiresAt);
     await tx.orderStatusHistory.create({ data: { orderId: row.id, actorId: req.auth!.userId, actorType: 'SELLER', fromStatus: current.status, toStatus: row.status } });
     await createNotification({ userId: row.buyerId, type: 'ORDER_STATUS_CHANGED', title: 'Commande confirmée', body: 'Vous pouvez maintenant effectuer le paiement sécurisé.', data: { orderId: row.id } }, tx);
     return row;
@@ -104,10 +106,7 @@ orderRoutes.patch('/:orderId/cancel', validate(orderReasonSchema), asyncHandler(
     });
     if (changed.count !== 1) throw new ApiError(409, 'Commande déjà modifiée.', 'ORDER_VERSION_CONFLICT');
     const row = await tx.order.findUniqueOrThrow({ where: { id: current.id } });
-    await tx.product.updateMany({
-      where: { id: row.productId, status: 'RESERVED', moderationStatus: 'APPROVED', archivedAt: null },
-      data: { status: 'AVAILABLE', reservedAt: null }
-    });
+    await releaseOrderReservations(tx, row.id, 'ORDER_CANCELLED');
     await tx.orderStatusHistory.create({ data: { orderId: row.id, actorId: req.auth!.userId, actorType: current.buyerId === req.auth!.userId ? 'BUYER' : 'SELLER', fromStatus: current.status, toStatus: 'CANCELLED', reason: body.reason } });
     return row;
   });
@@ -206,7 +205,6 @@ orderRoutes.patch('/:orderId/receive', validate(orderIdSchema), asyncHandler(asy
     });
     if (changed.count !== 1) throw new ApiError(409, 'Commande déjà modifiée.', 'ORDER_VERSION_CONFLICT');
     const row = await tx.order.findUniqueOrThrow({ where: { id: current.id } });
-    await tx.product.update({ where: { id: row.productId }, data: { status: 'SOLD', soldAt: now } });
     await tx.delivery.update({
       where: { orderId: row.id },
       data: { status: row.handoverMode === 'HAND_TO_HAND' ? 'NOT_REQUIRED' : 'DELIVERED', deliveredAt: now }
