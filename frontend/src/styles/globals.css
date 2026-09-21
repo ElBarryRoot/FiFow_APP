@@ -1,0 +1,118 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --header-height: 68px;
+    --content-max-width: 1440px;
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; background: #f6f7fb; }
+  body {
+    margin: 0;
+    font-family: Manrope, 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    background: #f6f7fb;
+    color: #111827;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+  }
+  button, input, textarea, select { font: inherit; letter-spacing: 0; }
+  button, [role='button'], a { -webkit-tap-highlight-color: transparent; }
+  button:not(:disabled), [role='button']:not([aria-disabled='true']) { cursor: pointer; }
+  img { max-width: 100%; display: block; }
+  ::selection { background: #ddd6fe; color: #101936; }
+  :focus-visible {
+    outline: 3px solid rgba(90, 53, 214, 0.28);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .page-shell {
+    @apply min-h-screen bg-fifow-bg;
+  }
+  .mobile-container {
+    @apply mx-auto w-full max-w-[430px] bg-white min-h-screen shadow-soft relative overflow-x-hidden;
+  }
+  .desktop-container {
+    @apply w-full px-4 sm:px-6 lg:px-8 xl:px-10;
+  }
+  .marketplace-container {
+    @apply w-full px-4 sm:px-6 lg:px-8 xl:px-10;
+  }
+  .glass-card {
+    @apply bg-white/95 border border-fifow-border shadow-card backdrop-blur-xl;
+  }
+  .section-title {
+    @apply text-xl font-extrabold text-fifow-dark sm:text-[1.375rem];
+  }
+  .page-eyebrow {
+    @apply text-[11px] font-extrabold uppercase text-fifow-primary;
+  }
+  .page-title {
+    @apply text-2xl font-black leading-tight text-fifow-dark sm:text-[1.75rem];
+  }
+  .page-description {
+    @apply max-w-2xl text-sm font-medium leading-6 text-fifow-secondary;
+  }
+  .premium-scrollbar {
+    scrollbar-width: none;
+  }
+  .premium-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+@keyframes toast-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero-product-float {
+  transform: translateY(-6px) rotate(-7deg);
+  transform-origin: center bottom;
+}
+
+.hero-publication-float {
+  transform: translateY(4px) rotate(7deg);
+  transform-origin: center top;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Mobile marketplace rhythm: compact spacing and readable hierarchy on phones. */
+@media (max-width: 639px) {
+  .marketplace-container,
+  .desktop-container {
+    padding-left: 0.75rem;
+    padding-right: 0.75rem;
+  }
+
+  .page-title {
+    font-size: 1.5rem;
+    line-height: 1.2;
+  }
+
+  .page-description {
+    font-size: 0.8125rem;
+    line-height: 1.45rem;
+  }
+
+  .section-title {
+    font-size: 1.125rem;
+    line-height: 1.35;
+  }
+
+  .premium-scrollbar {
+    overscroll-behavior-inline: contain;
+  }
+}
