@@ -60,6 +60,7 @@ enum ListingMode {
   SINGLE
   STOCK
   LOT
+  DONATION
 }
 
 enum InventoryReservationStatus {
@@ -234,6 +235,21 @@ enum ReportPriority {
   CRITICAL
 }
 
+enum DisputeStatus {
+  OPEN
+  UNDER_REVIEW
+  WAITING_FOR_USER
+  RESOLVED
+  REJECTED
+}
+
+enum DisputeResolution {
+  REFUND_FULL
+  REFUND_PARTIAL
+  RELEASE_PAYOUT
+  NO_ACTION
+}
+
 enum ModerationActionType {
   WARNING
   HIDE_PRODUCT
@@ -363,6 +379,8 @@ model User {
   reviewsReceived          Review[]                 @relation("ReviewSubject")
   reportsFiled             Report[]                 @relation("ReportReporter")
   reportsAssigned          Report[]                 @relation("ReportAssignee")
+  disputesOpened           DisputeCase[]            @relation("DisputeOpenedBy")
+  disputesAssigned         DisputeCase[]            @relation("DisputeAssignee")
   moderationActions        ModerationAction[]       @relation("ModerationActor")
   notifications            Notification[]
   boosts                   Boost[]                  @relation("BoostSeller")
@@ -477,6 +495,7 @@ model Product {
   currency              Currency               @default(GNF)
   condition             ProductCondition
   listingMode           ListingMode            @default(SINGLE) @map("listing_mode")
+  lotItemCount          Int?                   @map("lot_item_count")
   stockQuantity         Int                    @default(1) @map("stock_quantity")
   reservedQuantity      Int                    @default(0) @map("reserved_quantity")
   isNegotiable          Boolean                @map("is_negotiable")
@@ -806,6 +825,7 @@ model Order {
   delivery                    Delivery?
   reviews                     Review[]
   items                       OrderItem[]
+  disputeCase                 DisputeCase?
 
   @@index([buyerId, createdAt(sort: Desc)])
   @@index([sellerId, createdAt(sort: Desc)])
@@ -897,11 +917,37 @@ model Payment {
   refunds               Refund[]
   ledgerEntries         LedgerEntry[]
   boost                 Boost?
+  disputes              DisputeCase[]
 
   @@index([userId, createdAt(sort: Desc)])
   @@index([orderId, status])
   @@index([status, createdAt])
   @@map("payments")
+}
+
+model DisputeCase {
+  id              String             @id @default(uuid()) @db.Uuid
+  reference       String             @unique @db.VarChar(40)
+  orderId         String             @unique @map("order_id") @db.Uuid
+  paymentId       String?            @map("payment_id") @db.Uuid
+  openedById      String             @map("opened_by_id") @db.Uuid
+  assignedToId    String?            @map("assigned_to_id") @db.Uuid
+  status          DisputeStatus      @default(OPEN)
+  reason          String             @db.VarChar(1200)
+  resolution     DisputeResolution?
+  resolutionNote String?             @map("resolution_note") @db.VarChar(1200)
+  refundAmount   BigInt?             @map("refund_amount")
+  createdAt      DateTime            @default(now()) @map("created_at")
+  updatedAt      DateTime            @updatedAt @map("updated_at")
+  resolvedAt     DateTime?           @map("resolved_at")
+  order          Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  payment        Payment?            @relation(fields: [paymentId], references: [id], onDelete: SetNull)
+  openedBy       User                @relation("DisputeOpenedBy", fields: [openedById], references: [id], onDelete: Restrict)
+  assignedTo     User?               @relation("DisputeAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt])
+  @@index([paymentId, status])
+  @@map("dispute_cases")
 }
 
 model PaymentEvent {
