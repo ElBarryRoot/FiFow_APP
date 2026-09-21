@@ -52,6 +52,9 @@ export const cartService = {
         if (product.sellerId === buyerId) {
           throw new ApiError(400, 'Vous ne pouvez pas ajouter votre propre annonce.', 'OWN_PRODUCT');
         }
+        if (product.listingMode === 'DONATION') {
+          throw new ApiError(409, 'Cette annonce est proposée gratuitement. Contactez le vendeur pour organiser la remise.', 'DONATION_NOT_PURCHASABLE');
+        }
         assertQuantityAllowed(product.listingMode, product.stockQuantity - product.reservedQuantity, input.quantity);
 
         const blocked = await tx.userBlock.findFirst({

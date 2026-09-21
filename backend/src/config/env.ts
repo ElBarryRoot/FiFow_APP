@@ -130,3 +130,31 @@ export const env = {
 export type AppEnvironment = typeof env;
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
+
+const isPrivateIpv4 = (hostname: string) => {
+  const parts = hostname.split('.').map(Number);
+  if (parts.length !== 4 || parts.some((part) => !Number.isInteger(part) || part < 0 || part > 255)) return false;
+  const first = parts[0];
+  const second = parts[1];
+  return first === 10 || (first === 172 && second !== undefined && second >= 16 && second <= 31) || (first === 192 && second === 168);
+};
+
+/**
+ * Development-only LAN origins let a phone use the Vite proxy over Wi-Fi.
+ * This is deliberately disabled outside development and limited to HTTP
+ * private-network addresses and the ports used by local web apps.
+ */
+export const isTrustedBrowserOrigin = (origin: string) => {
+  if (env.CORS_ORIGINS.includes(origin)) return true;
+  if (env.NODE_ENV !== 'development') return false;
+
+  try {
+    const url = new URL(origin);
+    const localHost = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+    const privateHost = isPrivateIpv4(url.hostname);
+    const allowedPort = ['', '80', '3000', '4173', '5173'].includes(url.port);
+    return url.protocol === 'http:' && (localHost || privateHost) && allowedPort;
+  } catch {
+    return false;
+  }
+};

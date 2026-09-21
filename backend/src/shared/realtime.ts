@@ -97,6 +97,16 @@ export function emitPayoutUpdated(payout: PayoutRealtimeEvent) {
   emitAdminResourceUpdated('PAYOUT', payout.id, payout.status, payout.updatedAt);
 }
 
+type DisputeRealtimeEvent = {
+  id: string;
+  status: string;
+  updatedAt?: RealtimeTimestamp;
+};
+
+export function emitDisputeUpdated(dispute: DisputeRealtimeEvent) {
+  emitAdminResourceUpdated('DISPUTE', dispute.id, dispute.status, dispute.updatedAt);
+}
+
 type BoostRealtimeEvent = {
   id: string;
   status: string;

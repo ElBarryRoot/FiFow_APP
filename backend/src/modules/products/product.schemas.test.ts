@@ -16,6 +16,16 @@ const baseProduct = {
 };
 
 describe('validation du stock des annonces', () => {
+  it('autorise une annonce don sans paiement', () => {
+    const parsed = createProductSchema.parse({
+      body: { ...baseProduct, price: '0', listingMode: 'DONATION', stockQuantity: 1 },
+      params: {},
+      query: {}
+    });
+    assert.equal(parsed.body.listingMode, 'DONATION');
+    assert.equal(parsed.body.price, '0');
+  });
+
   it('conserve une quantité fixe pour un article unique', () => {
     const parsed = createProductSchema.parse({
       body: { ...baseProduct, listingMode: 'SINGLE', stockQuantity: 1 },
@@ -27,7 +37,32 @@ describe('validation du stock des annonces', () => {
 
   it('refuse plusieurs exemplaires sans le mode stock', () => {
     const result = createProductSchema.safeParse({
-      body: { ...baseProduct, listingMode: 'LOT', stockQuantity: 2 },
+      body: { ...baseProduct, listingMode: 'LOT', stockQuantity: 2, lotItemCount: 3 },
+      params: {},
+      query: {}
+    });
+    assert.equal(result.success, false);
+  });
+
+  it('exige le nombre d’articles contenus dans un lot', () => {
+    const missingCount = createProductSchema.safeParse({
+      body: { ...baseProduct, listingMode: 'LOT', stockQuantity: 1 },
+      params: {},
+      query: {}
+    });
+    assert.equal(missingCount.success, false);
+
+    const valid = createProductSchema.parse({
+      body: { ...baseProduct, listingMode: 'LOT', stockQuantity: 1, lotItemCount: 3 },
+      params: {},
+      query: {}
+    });
+    assert.equal(valid.body.lotItemCount, 3);
+  });
+
+  it('refuse un nombre de lot sur un article hors lot', () => {
+    const result = createProductSchema.safeParse({
+      body: { ...baseProduct, listingMode: 'SINGLE', stockQuantity: 1, lotItemCount: 3 },
       params: {},
       query: {}
     });

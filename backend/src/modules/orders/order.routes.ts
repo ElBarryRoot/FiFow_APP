@@ -1,4 +1,5 @@
 import { Router } from 'express';
+import { randomBytes } from 'node:crypto';
 import { z } from 'zod';
 import { prisma } from '../../config/prisma.js';
 import { ApiError } from '../../shared/errors/api-error.js';
@@ -7,7 +8,7 @@ import { sendSuccess } from '../../shared/http/api-response.js';
 import { validate } from '../../http/middlewares/validate.middleware.js';
 import { authenticate, requireVerifiedEmail } from '../auth/auth.middleware.js';
 import { createNotification } from '../notifications/notification.service.js';
-import { emitOrderUpdated } from '../../shared/realtime.js';
+import { emitDisputeUpdated, emitOrderUpdated } from '../../shared/realtime.js';
 import { orderService } from './order.service.js';
 import { extendOrderReservations, releaseOrderReservations } from './inventory.service.js';
 import {
@@ -26,6 +27,10 @@ async function participant(orderId: string, userId: string) {
   });
   if (!order) throw new ApiError(404, 'Commande introuvable.', 'ORDER_NOT_FOUND');
   return order;
+}
+
+function disputeReference() {
+  return `FD-${Date.now().toString(36).toUpperCase()}-${randomBytes(4).toString('hex').toUpperCase()}`;
 }
 
 export const orderRoutes = Router();
@@ -237,14 +242,32 @@ orderRoutes.patch('/:orderId/dispute', validate(orderReasonSchema), asyncHandler
     if (changed.count !== 1) throw new ApiError(409, 'Commande déjà modifiée.', 'ORDER_VERSION_CONFLICT');
     const row = await tx.order.findUniqueOrThrow({ where: { id: current.id } });
     await tx.payout.updateMany({ where: { orderId: row.id }, data: { status: 'BLOCKED', availableAt: null } });
+    const dispute = await tx.disputeCase.create({
+      data: {
+        reference: disputeReference(),
+        orderId: row.id,
+        paymentId: current.payments.find((payment) => payment.status === 'SUCCEEDED')?.id ?? null,
+        openedById: req.auth!.userId,
+        reason: body.reason
+      }
+    });
     if (row.conversationId) {
       await tx.conversation.update({ where: { id: row.conversationId }, data: { status: 'DISPUTED', isReported: true } });
     }
     await tx.orderStatusHistory.create({
       data: { orderId: row.id, actorId: req.auth!.userId, actorType: current.buyerId === req.auth!.userId ? 'BUYER' : 'SELLER', fromStatus: current.status, toStatus: 'DISPUTED', reason: body.reason }
     });
-    return row;
+    const recipientId = row.buyerId === req.auth!.userId ? row.sellerId : row.buyerId;
+    await createNotification({
+      userId: recipientId,
+      type: 'ORDER_STATUS_CHANGED',
+      title: 'Un problème a été signalé',
+      body: 'Fi Fow examine cette commande avant toute suite au paiement.',
+      data: { orderId: row.id, status: 'DISPUTED' }
+    }, tx);
+    return { order: row, dispute };
   });
-  emitOrderUpdated(updated);
-  return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.id), message: 'Litige ouvert. Le versement reste bloqué.' });
+  emitOrderUpdated(updated.order);
+  emitDisputeUpdated(updated.dispute);
+  return sendSuccess(res, { data: await orderService.detail(req.auth!.userId, updated.order.id), message: 'Litige ouvert. Le versement reste bloqué.' });
 }));

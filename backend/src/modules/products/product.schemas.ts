@@ -5,11 +5,12 @@ const emptyBody = z.unknown().optional();
 const price = z
   .string()
   .trim()
-  .regex(/^[1-9][0-9]{2,14}$/, 'Le prix doit être un entier positif en GNF.');
+  .regex(/^(0|[1-9][0-9]{2,14})$/, 'Le prix doit être un entier positif en GNF.');
 const handoverMode = z.enum(['HAND_TO_HAND', 'HOME_DELIVERY', 'PICKUP_POINT']);
 const productCondition = z.enum(['NEW', 'LIKE_NEW', 'GOOD', 'FAIR', 'TO_REPAIR']);
-const listingMode = z.enum(['SINGLE', 'STOCK', 'LOT']);
+const listingMode = z.enum(['SINGLE', 'STOCK', 'LOT', 'DONATION']);
 const stockQuantity = z.coerce.number().int().min(1).max(10_000);
+const lotItemCount = z.coerce.number().int().min(2).max(10_000);
 
 const productFields = {
   title: z.string().trim().min(5).max(120),
@@ -18,6 +19,7 @@ const productFields = {
   condition: productCondition,
   listingMode: listingMode.default('SINGLE'),
   stockQuantity: stockQuantity.default(1),
+  lotItemCount: lotItemCount.nullable().default(null),
   isNegotiable: z.boolean(),
   categoryId: uuid,
   subcategoryId: uuid,
@@ -29,7 +31,9 @@ const productFields = {
 function validateInventory(
   body: {
     listingMode?: z.infer<typeof listingMode> | undefined;
+    price?: string | undefined;
     stockQuantity?: number | undefined;
+    lotItemCount?: number | null | undefined;
   },
   context: z.RefinementCtx
 ) {
@@ -38,6 +42,23 @@ function validateInventory(
       code: z.ZodIssueCode.custom,
       path: ['stockQuantity'],
       message: 'Un article unique ou un lot possède une quantité fixe de 1.'
+    });
+  }
+  if (body.listingMode !== 'DONATION' && body.price === '0') {
+    context.addIssue({ code: z.ZodIssueCode.custom, path: ['price'], message: 'Le prix doit être supérieur à 0 GNF hors mode don.' });
+  }
+  if (body.listingMode === 'LOT' && body.lotItemCount == null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['lotItemCount'],
+      message: 'Indiquez le nombre d’articles contenus dans le lot.'
+    });
+  }
+  if (body.listingMode && body.listingMode !== 'LOT' && body.lotItemCount != null) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['lotItemCount'],
+      message: 'Le nombre d’articles du lot est réservé au mode lot.'
     });
   }
 }
@@ -57,6 +78,7 @@ export const updateProductSchema = z.object({
       condition: productFields.condition.optional(),
       listingMode: listingMode.optional(),
       stockQuantity: stockQuantity.optional(),
+      lotItemCount: lotItemCount.nullable().optional(),
       isNegotiable: productFields.isNegotiable.optional(),
       categoryId: productFields.categoryId.optional(),
       subcategoryId: productFields.subcategoryId.optional(),
@@ -124,6 +146,7 @@ export const listProductsSchema = z.object({
     subcategory: z.string().trim().max(100).optional(),
     commune: z.string().trim().max(80).optional(),
     condition: productCondition.optional(),
+    listingMode: listingMode.optional(),
     minPrice: price.optional(),
     maxPrice: price.optional(),
     negotiable: z

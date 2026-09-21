@@ -5,7 +5,7 @@ import express from 'express';
 import type { Request } from 'express';
 import helmet from 'helmet';
 import hpp from 'hpp';
-import { env, isProduction } from './config/env.js';
+  import { env, isProduction, isTrustedBrowserOrigin } from './config/env.js';
 import { errorHandler, notFound } from './http/middlewares/error.middleware.js';
 import { globalRateLimit } from './http/middlewares/rate-limit.middleware.js';
 import { requestId } from './http/middlewares/request-id.middleware.js';
@@ -30,7 +30,7 @@ export function createApp() {
     cors({
       credentials: true,
       origin(origin, callback) {
-        if (!origin || env.CORS_ORIGINS.includes(origin)) return callback(null, true);
+          if (!origin || isTrustedBrowserOrigin(origin)) return callback(null, true);
         return callback(new Error('Origine CORS non autorisée.'));
       }
     })

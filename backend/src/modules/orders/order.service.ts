@@ -78,6 +78,9 @@ export const orderService = {
 
     for (const product of orderedProducts) {
       const quantity = requestedById.get(product.id)!.quantity;
+      if (product.listingMode === 'DONATION') {
+        throw new ApiError(409, 'Cette annonce est un don et ne passe pas par le paiement. Contactez le vendeur.', 'DONATION_NOT_PURCHASABLE');
+      }
       if (!isProductSellable(product) || product.stockQuantity - product.reservedQuantity < quantity) {
         throw new ApiError(409, `« ${product.title} » n’est plus disponible dans cette quantité.`, 'PRODUCT_NOT_AVAILABLE');
       }
@@ -174,6 +177,7 @@ export const orderService = {
               unitPrice: unitPrice.toString(),
               currency: product.currency,
               listingMode: product.listingMode,
+              lotItemCount: product.lotItemCount,
               imageKey: product.images[0]?.storageKey ?? null
             }
           }))
@@ -187,6 +191,8 @@ export const orderService = {
         id: firstLine.product.id,
         title: firstLine.product.title,
         slug: firstLine.product.slug,
+        listingMode: firstLine.product.listingMode,
+        lotItemCount: firstLine.product.lotItemCount,
         seller: firstLine.product.seller,
         imageUrl: imageKey ? getStorage().publicUrl(imageKey) : null
       },
@@ -197,6 +203,7 @@ export const orderService = {
           title: product.title,
           slug: product.slug,
           listingMode: product.listingMode,
+          lotItemCount: product.lotItemCount,
           imageUrl: product.images[0]?.storageKey ? getStorage().publicUrl(product.images[0].storageKey) : null
         },
         quantity,

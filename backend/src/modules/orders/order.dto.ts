@@ -40,6 +40,19 @@ export const orderDetailInclude = {
   reviews: {
     select: { id: true, authorId: true, subjectId: true, rating: true, status: true, createdAt: true }
   },
+  disputeCase: {
+    select: {
+      id: true,
+      reference: true,
+      status: true,
+      reason: true,
+      resolution: true,
+      resolutionNote: true,
+      refundAmount: true,
+      createdAt: true,
+      resolvedAt: true
+    }
+  },
   items: {
     orderBy: { createdAt: 'asc' as const },
     include: {
@@ -50,6 +63,7 @@ export const orderDetailInclude = {
           slug: true,
           status: true,
           listingMode: true,
+          lotItemCount: true,
           images: {
             where: { archivedAt: null },
             orderBy: [{ isMain: 'desc' as const }, { sortOrder: 'asc' as const }],
@@ -113,6 +127,7 @@ export const orderSummaryInclude = {
           slug: true,
           status: true,
           listingMode: true,
+          lotItemCount: true,
           images: {
             where: { archivedAt: null },
             orderBy: [{ isMain: 'desc' as const }, { sortOrder: 'asc' as const }],
@@ -149,6 +164,7 @@ function orderItemDto(item: OrderWithDetails['items'][number] | OrderSummary['it
       slug: item.product.slug,
       status: item.product.status,
       listingMode: item.product.listingMode,
+      lotItemCount: item.product.lotItemCount,
       imageUrl: imageKey ? getStorage().publicUrl(imageKey) : null
     }
   };
@@ -243,6 +259,10 @@ export function toOrderDto(order: OrderWithDetails, userId: string) {
     cancelReason: order.cancelReason,
     disputedAt: order.disputedAt,
     disputeReason: order.disputeReason,
+    disputeCase: order.disputeCase ? {
+      ...order.disputeCase,
+      refundAmount: order.disputeCase.refundAmount?.toString() ?? null
+    } : null,
     createdAt: order.createdAt,
     updatedAt: order.updatedAt
   };

@@ -70,7 +70,7 @@ function editableProduct(status: ProductStatus) {
   }
 }
 
-async function assertInventoryCapability(sellerId: string, listingMode: 'SINGLE' | 'STOCK' | 'LOT') {
+async function assertInventoryCapability(sellerId: string, listingMode: 'SINGLE' | 'STOCK' | 'LOT' | 'DONATION') {
   if (listingMode !== 'STOCK') return;
   const seller = await prisma.user.findUnique({
     where: { id: sellerId },
@@ -111,6 +111,7 @@ export const productService = {
         price: BigInt(input.price),
         condition: input.condition,
         listingMode: input.listingMode,
+        lotItemCount: input.listingMode === 'LOT' ? input.lotItemCount : null,
         stockQuantity: input.listingMode === 'STOCK' ? input.stockQuantity : 1,
         isNegotiable: input.isNegotiable,
         commune: input.commune,
@@ -131,6 +132,7 @@ export const productService = {
         categoryId: true,
         subcategoryId: true,
         listingMode: true,
+        lotItemCount: true,
         stockQuantity: true
       }
     });
@@ -146,9 +148,31 @@ export const productService = {
     const stockQuantity = listingMode === 'STOCK'
       ? input.stockQuantity ?? (existing.listingMode === 'STOCK' ? existing.stockQuantity : 1)
       : 1;
+    const lotItemCount = listingMode === 'LOT'
+      ? input.lotItemCount ?? (existing.listingMode === 'LOT' ? existing.lotItemCount : null)
+      : null;
     await assertInventoryCapability(sellerId, listingMode);
     if (listingMode !== 'STOCK' && input.stockQuantity !== undefined && input.stockQuantity !== 1) {
       throw new ApiError(400, 'Un article unique ou un lot possède une quantité fixe de 1.', 'INVALID_STOCK_QUANTITY');
+    }
+
+    if (
+      listingMode === 'LOT' &&
+      lotItemCount == null &&
+      (input.listingMode !== undefined || input.lotItemCount !== undefined)
+    ) {
+      throw new ApiError(
+        400,
+        'Indiquez le nombre d’articles contenus dans le lot.',
+        'LOT_ITEM_COUNT_REQUIRED'
+      );
+    }
+    if (listingMode !== 'LOT' && input.lotItemCount != null) {
+      throw new ApiError(
+        400,
+        'Le nombre d’articles du lot est réservé au mode lot.',
+        'INVALID_LOT_ITEM_COUNT'
+      );
     }
 
     const { price, ...rest } = input;
@@ -158,6 +182,7 @@ export const productService = {
       ...(rest.description !== undefined ? { description: rest.description } : {}),
       ...(rest.condition !== undefined ? { condition: rest.condition } : {}),
       ...(rest.listingMode !== undefined ? { listingMode: rest.listingMode } : {}),
+      ...(rest.listingMode !== undefined || rest.lotItemCount !== undefined ? { lotItemCount } : {}),
       ...(rest.listingMode !== undefined || rest.stockQuantity !== undefined
         ? { stockQuantity: listingMode === 'STOCK' ? stockQuantity : 1 }
         : {}),
@@ -425,6 +450,7 @@ export const productService = {
           categoryId: true,
           subcategoryId: true,
           listingMode: true,
+          lotItemCount: true,
           seller: { select: { canManageStock: true } },
           images: { where: { archivedAt: null }, select: { id: true } }
         }
@@ -439,6 +465,13 @@ export const productService = {
           403,
           'La vente avec stock n’est plus autorisée pour ce compte.',
           'STOCK_CAPABILITY_REQUIRED'
+        );
+      }
+      if (product.listingMode === 'LOT' && product.lotItemCount == null) {
+        throw new ApiError(
+          400,
+          'Indiquez le nombre d’articles contenus dans le lot avant de publier.',
+          'LOT_ITEM_COUNT_REQUIRED'
         );
       }
       const category = await tx.category.findFirst({
@@ -476,17 +509,15 @@ export const productService = {
   },
 
   async list(input: ListProductsInput) {
+    const searchTokens = input.search
+      ? input.search.normalize('NFKC').trim().split(/\s+/).filter((token) => token.length >= 2).slice(0, 6)
+      : [];
     const where: Prisma.ProductWhereInput = {
       status: 'AVAILABLE',
       moderationStatus: 'APPROVED',
       archivedAt: null,
-      ...(input.search
-        ? {
-            OR: [
-              { title: { contains: input.search, mode: 'insensitive' } },
-              { description: { contains: input.search, mode: 'insensitive' } }
-            ]
-          }
+      ...(searchTokens.length
+        ? { AND: searchTokens.map((token) => ({ OR: [{ title: { contains: token, mode: 'insensitive' as const } }, { description: { contains: token, mode: 'insensitive' as const } }] })) }
         : {}),
       ...(input.sellerId ? { sellerId: input.sellerId } : {}),
       ...(input.verified !== undefined
@@ -503,6 +534,7 @@ export const productService = {
       ...(input.subcategory ? { subcategory: { slug: input.subcategory } } : {}),
       ...(input.commune ? { commune: { equals: input.commune, mode: 'insensitive' } } : {}),
       ...(input.condition ? { condition: input.condition } : {}),
+      ...(input.listingMode ? { listingMode: input.listingMode } : {}),
       ...(input.negotiable !== undefined ? { isNegotiable: input.negotiable } : {}),
       ...(input.minPrice || input.maxPrice
         ? {

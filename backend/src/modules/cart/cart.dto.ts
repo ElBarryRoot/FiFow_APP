@@ -57,6 +57,7 @@ function itemDto(item: CartWithItems['items'][number]) {
       slug: product.slug,
       status: product.status,
       listingMode: product.listingMode,
+      lotItemCount: product.lotItemCount,
       stockQuantity: product.stockQuantity,
       reservedQuantity: product.reservedQuantity,
       handoverModes: product.handoverModes,

@@ -9,6 +9,7 @@ import { asyncHandler } from '../../shared/http/async-handler.js';
 import { sendSuccess } from '../../shared/http/api-response.js';
 import {
   emitBoostUpdated,
+  emitDisputeUpdated,
   emitOrderUpdated,
   emitPaymentUpdated,
   emitPayoutUpdated,
@@ -24,6 +25,21 @@ const uuid = z.string().uuid();
 const emptyBody = z.unknown().optional();
 const idSchema = z.object({
   body: emptyBody,
+  params: z.object({ id: uuid }),
+  query: z.object({})
+});
+const disputeListSchema = z.object({
+  body: emptyBody,
+  params: z.object({}),
+  query: z.object({ cursor: uuid.optional(), limit: z.coerce.number().int().min(1).max(50).default(30), status: z.enum(['OPEN', 'UNDER_REVIEW', 'WAITING_FOR_USER', 'RESOLVED', 'REJECTED']).optional() })
+});
+const disputeResolveSchema = z.object({
+  body: z.object({
+    status: z.enum(['RESOLVED', 'REJECTED']),
+    resolution: z.enum(['REFUND_FULL', 'REFUND_PARTIAL', 'RELEASE_PAYOUT', 'NO_ACTION']),
+    note: z.string().trim().min(3).max(1200),
+    refundAmount: z.string().regex(/^\d+$/).optional()
+  }),
   params: z.object({ id: uuid }),
   query: z.object({})
 });
@@ -378,11 +394,12 @@ adminRoutes.use(authenticate, requireRole('MODERATOR', 'ADMIN', 'SUPER_ADMIN'));
 adminRoutes.use('/support', supportAdminRoutes);
 
 adminRoutes.get('/dashboard', asyncHandler(async (_request, response) => {
-  const [users, products, openReports, pendingOrders, paymentVolume, pendingVerifications] =
+  const [users, products, openReports, openDisputes, pendingOrders, paymentVolume, pendingVerifications] =
     await Promise.all([
       prisma.user.count({ where: { status: 'ACTIVE' } }),
       prisma.product.count({ where: { archivedAt: null } }),
       prisma.report.count({ where: { status: { in: ['OPEN', 'UNDER_REVIEW'] } } }),
+      prisma.order.count({ where: { status: 'DISPUTED' } }),
       prisma.order.count({ where: { status: { notIn: ['COMPLETED', 'CANCELLED', 'REFUNDED'] } } }),
       prisma.payment.aggregate({ where: { status: 'SUCCEEDED' }, _sum: { amount: true }, _count: true }),
       prisma.sellerVerification.count({ where: { status: 'PENDING' } })
@@ -392,6 +409,7 @@ adminRoutes.get('/dashboard', asyncHandler(async (_request, response) => {
       users,
       products,
       openReports,
+      openDisputes,
       pendingOrders,
       successfulPayments: paymentVolume._count,
       paymentVolume: (paymentVolume._sum.amount ?? 0n).toString(),
@@ -400,14 +418,143 @@ adminRoutes.get('/dashboard', asyncHandler(async (_request, response) => {
   });
 }));
 
+adminRoutes.get('/disputes', validate(disputeListSchema), asyncHandler(async (request, response) => {
+  const { query } = request.validated as { query: { cursor?: string; limit: number; status?: string } };
+  const rows = await prisma.disputeCase.findMany({
+    where: query.status ? { status: query.status as 'OPEN' | 'UNDER_REVIEW' | 'WAITING_FOR_USER' | 'RESOLVED' | 'REJECTED' } : {},
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+    take: query.limit + 1,
+    ...(query.cursor ? { cursor: { id: query.cursor }, skip: 1 } : {}),
+    include: {
+      order: { select: { id: true, reference: true, status: true, totalAmount: true, product: { select: { title: true } }, buyer: { select: { fullName: true } }, seller: { select: { fullName: true } } } },
+      openedBy: { select: { fullName: true } },
+      assignedTo: { select: { fullName: true } }
+    }
+  });
+  const more = rows.length > query.limit;
+  const page = more ? rows.slice(0, query.limit) : rows;
+  return sendSuccess(response, { data: page.map((row) => ({ ...row, order: { ...row.order, totalAmount: row.order.totalAmount.toString() } })), meta: { nextCursor: more ? page.at(-1)?.id ?? null : null } });
+}));
+
+adminRoutes.get('/disputes/:id', validate(idSchema), asyncHandler(async (request, response) => {
+  const { params } = request.validated as { params: { id: string } };
+  const row = await prisma.disputeCase.findUnique({
+    where: { id: params.id },
+    include: {
+      order: {
+        include: {
+          buyer: { select: { id: true, fullName: true, email: true, phone: true } },
+          seller: { select: { id: true, fullName: true, email: true, phone: true } },
+          product: { select: { id: true, title: true, slug: true, images: { where: { archivedAt: null }, orderBy: { sortOrder: 'asc' }, take: 8, select: { id: true, storageKey: true, mimeType: true } } } },
+          statusHistory: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 100 },
+          payout: true,
+          delivery: { include: { history: { orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], take: 100 } } },
+          conversation: {
+            select: {
+              id: true,
+              status: true,
+              lastMessageAt: true,
+              messages: {
+                where: { archivedAt: null },
+                orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+                take: 100,
+                select: { id: true, senderId: true, type: true, text: true, mediaKey: true, isReported: true, createdAt: true }
+              }
+            }
+          }
+        }
+      },
+      payment: {
+        include: {
+          refunds: { orderBy: { createdAt: 'desc' }, take: 20, select: { id: true, status: true, amount: true, currency: true, reason: true, internalReference: true, failureReason: true, processedAt: true, createdAt: true } },
+          events: { orderBy: { receivedAt: 'desc' }, take: 30, select: { id: true, provider: true, status: true, signatureValid: true, receivedAt: true, processedAt: true, processingError: true } }
+        }
+      },
+      openedBy: { select: { id: true, fullName: true, email: true } },
+      assignedTo: { select: { id: true, fullName: true, email: true } }
+    }
+  });
+  if (!row) throw new ApiError(404, 'Litige introuvable.', 'DISPUTE_NOT_FOUND');
+  const money = (value: bigint | null | undefined) => value?.toString() ?? null;
+  const payment = row.payment ? {
+    id: row.payment.id,
+    orderId: row.payment.orderId,
+    type: row.payment.type,
+    provider: row.payment.provider,
+    status: row.payment.status,
+    amount: money(row.payment.amount),
+    currency: row.payment.currency,
+    internalReference: row.payment.internalReference,
+    providerTransactionId: row.payment.providerTransactionId,
+    paidAt: row.payment.paidAt,
+    failedAt: row.payment.failedAt,
+    failureCode: row.payment.failureCode,
+    failureReason: row.payment.failureReason,
+    createdAt: row.payment.createdAt,
+    updatedAt: row.payment.updatedAt,
+    refunds: row.payment.refunds.map((refund) => ({ ...refund, amount: money(refund.amount) })),
+    events: row.payment.events
+  } : null;
+  const payout = row.order.payout ? { ...row.order.payout, amount: money(row.order.payout.amount) } : null;
+  const { buyerSnapshot: _buyerSnapshot, sellerSnapshot: _sellerSnapshot, ...orderWithoutSnapshots } = row.order;
+  const order = {
+    ...orderWithoutSnapshots,
+    totalAmount: money(row.order.totalAmount),
+    itemAmount: money(row.order.itemAmount),
+    buyerProtectionFee: money(row.order.buyerProtectionFee),
+    deliveryFee: money(row.order.deliveryFee),
+    payout,
+    conversation: row.order.conversation ? {
+      ...row.order.conversation,
+      messages: [...row.order.conversation.messages].reverse()
+    } : null
+  };
+  return sendSuccess(response, { data: { ...row, order, payment, refundAmount: money(row.refundAmount) } });
+}));
+
+adminRoutes.patch('/disputes/:id/assign', validate(idSchema), asyncHandler(async (request, response) => {
+  const { params } = request.validated as { params: { id: string } };
+  const row = await prisma.disputeCase.update({ where: { id: params.id }, data: { assignedToId: request.auth!.userId, status: 'UNDER_REVIEW' } });
+  emitDisputeUpdated(row);
+  return sendSuccess(response, { data: row, message: 'Litige pris en charge.' });
+}));
+
+adminRoutes.patch('/disputes/:id/resolve', validate(disputeResolveSchema), asyncHandler(async (request, response) => {
+  const { params, body } = request.validated as { params: { id: string }; body: { status: 'RESOLVED' | 'REJECTED'; resolution: 'REFUND_FULL' | 'REFUND_PARTIAL' | 'RELEASE_PAYOUT' | 'NO_ACTION'; note: string; refundAmount?: string } };
+  if (body.resolution === 'REFUND_PARTIAL' && !body.refundAmount) throw new ApiError(400, 'Indiquez le montant du remboursement partiel.', 'REFUND_AMOUNT_REQUIRED');
+  const result = await prisma.$transaction(async (tx) => {
+    const current = await tx.disputeCase.findUnique({ where: { id: params.id }, include: { order: true, payment: true } });
+    if (!current) throw new ApiError(404, 'Litige introuvable.', 'DISPUTE_NOT_FOUND');
+    if (['RESOLVED', 'REJECTED'].includes(current.status)) throw new ApiError(409, 'Ce litige est déjà clôturé.', 'DISPUTE_ALREADY_CLOSED');
+    const refundRequested = ['REFUND_FULL', 'REFUND_PARTIAL'].includes(body.resolution);
+    if (refundRequested) {
+      if (!current.payment || current.payment.status !== 'SUCCEEDED') throw new ApiError(409, 'Le paiement ne peut pas encore être remboursé.', 'PAYMENT_NOT_REFUNDABLE');
+      const amount = body.resolution === 'REFUND_FULL' ? current.payment.amount : BigInt(body.refundAmount!);
+      if (amount <= 0n || amount > current.payment.amount) throw new ApiError(400, 'Montant de remboursement invalide.', 'INVALID_REFUND_AMOUNT');
+      const active = await tx.refund.findFirst({ where: { paymentId: current.payment.id, status: { in: ['REQUESTED', 'PROCESSING', 'SUCCEEDED'] } }, select: { id: true } });
+      if (active) throw new ApiError(409, 'Un remboursement est déjà en cours pour ce paiement.', 'REFUND_ALREADY_EXISTS');
+      await tx.refund.create({ data: { paymentId: current.payment.id, orderId: current.orderId, requestedById: request.auth!.userId, amount, reason: body.note, internalReference: `REF-${Date.now().toString(36).toUpperCase()}-${randomBytes(6).toString('hex').toUpperCase()}` } });
+      await tx.payment.update({ where: { id: current.payment.id }, data: { status: 'REFUND_PENDING' } });
+    }
+    const row = await tx.disputeCase.update({ where: { id: params.id }, data: { status: body.status, resolution: body.resolution, resolutionNote: body.note, refundAmount: body.refundAmount ? BigInt(body.refundAmount) : (body.resolution === 'REFUND_FULL' ? current.payment?.amount ?? null : null), resolvedAt: new Date(), assignedToId: request.auth!.userId } });
+    if (body.resolution === 'RELEASE_PAYOUT') await tx.payout.updateMany({ where: { orderId: current.orderId, status: 'BLOCKED' }, data: { status: 'SCHEDULED', availableAt: new Date(Date.now() + 24 * 60 * 60_000) } });
+    await createNotification({ userId: current.order.buyerId, type: 'REFUND_UPDATED', title: 'Mise à jour de votre litige', body: body.resolution === 'RELEASE_PAYOUT' ? 'Le dossier a été examiné et le versement vendeur peut suivre son cours.' : 'Fi Fow a enregistré une décision sur votre dossier.', data: { disputeId: row.id, orderId: current.orderId, status: row.status } }, tx);
+    return row;
+  });
+  emitDisputeUpdated(result);
+  return sendSuccess(response, { data: { ...result, refundAmount: result.refundAmount?.toString() ?? null }, message: 'Décision du litige enregistrée.' });
+}));
+
 adminRoutes.get('/users', validate(listSchema), asyncHandler(async (request, response) => {
   const { query } = request.validated as { query: { cursor?: string; limit: number; search?: string; status?: string } };
   const rows = await prisma.user.findMany({
     where: {
-      ...(query.search ? { OR: [
-        { email: { contains: query.search, mode: 'insensitive' } },
-        { fullName: { contains: query.search, mode: 'insensitive' } }
-      ] } : {}),
+      ...(query.search ? {
+        OR: [
+          { email: { contains: query.search, mode: 'insensitive' } },
+          { fullName: { contains: query.search, mode: 'insensitive' } }
+        ]
+      } : {}),
       ...(query.status && ['ACTIVE', 'SUSPENDED', 'BANNED', 'ARCHIVED'].includes(query.status)
         ? { status: query.status as 'ACTIVE' | 'SUSPENDED' | 'BANNED' | 'ARCHIVED' }
         : {})
@@ -778,11 +925,11 @@ adminRoutes.get('/categories', validate(listSchema), asyncHandler(async (request
     where: {
       ...(query.search
         ? {
-            OR: [
-              { name: { contains: query.search, mode: 'insensitive' } },
-              { slug: { contains: query.search, mode: 'insensitive' } }
-            ]
-          }
+          OR: [
+            { name: { contains: query.search, mode: 'insensitive' } },
+            { slug: { contains: query.search, mode: 'insensitive' } }
+          ]
+        }
         : {}),
       ...(query.status === 'active'
         ? { isActive: true, archivedAt: null }
@@ -1280,11 +1427,11 @@ adminRoutes.get('/boost-plans', requireRole('ADMIN', 'SUPER_ADMIN'), validate(bo
     ...(query.status === 'archived' ? { archivedAt: { not: null } } : {}),
     ...(query.search
       ? {
-          OR: [
-            { name: { contains: query.search, mode: 'insensitive' } },
-            { slug: { contains: query.search, mode: 'insensitive' } }
-          ]
-        }
+        OR: [
+          { name: { contains: query.search, mode: 'insensitive' } },
+          { slug: { contains: query.search, mode: 'insensitive' } }
+        ]
+      }
       : {})
   };
   const rows = await prisma.boostPlan.findMany({
