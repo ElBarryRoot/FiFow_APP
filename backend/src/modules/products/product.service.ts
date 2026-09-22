@@ -32,6 +32,26 @@ function slugify(title: string) {
   return `${base || 'annonce'}-${randomBytes(5).toString('hex')}`;
 }
 
+const searchSynonyms: Record<string, string[]> = {
+  telephone: ['telephone', 'téléphone', 'téléphones', 'smartphone', 'portable', 'mobile'],
+  phone: ['phone', 'telephone', 'téléphone', 'smartphone', 'portable'],
+  smartphone: ['smartphone', 'telephone', 'téléphone', 'portable', 'mobile'],
+  portable: ['portable', 'telephone', 'téléphone', 'smartphone', 'mobile'],
+  mobile: ['mobile', 'telephone', 'téléphone', 'smartphone', 'portable']
+};
+
+function normalizeSearchTerm(value: string) {
+  return value.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLocaleLowerCase('fr-GN').trim();
+}
+
+function expandSearchTokens(value?: string) {
+  const tokens = value?.normalize('NFKC').trim().split(/\s+/).filter((token) => token.length >= 2).slice(0, 6) || [];
+  return tokens.map((token) => {
+    const normalized = normalizeSearchTerm(token);
+    return Array.from(new Set([token, normalized, ...(searchSynonyms[normalized] || [])].filter(Boolean)));
+  });
+}
+
 async function activeSubcategory(categoryId: string, subcategoryId: string) {
   const subcategory = await prisma.category.findFirst({
     where: {
@@ -509,15 +529,22 @@ export const productService = {
   },
 
   async list(input: ListProductsInput) {
-    const searchTokens = input.search
-      ? input.search.normalize('NFKC').trim().split(/\s+/).filter((token) => token.length >= 2).slice(0, 6)
-      : [];
+    const searchTokens = expandSearchTokens(input.search);
     const where: Prisma.ProductWhereInput = {
       status: 'AVAILABLE',
       moderationStatus: 'APPROVED',
       archivedAt: null,
       ...(searchTokens.length
-        ? { AND: searchTokens.map((token) => ({ OR: [{ title: { contains: token, mode: 'insensitive' as const } }, { description: { contains: token, mode: 'insensitive' as const } }] })) }
+        ? {
+            AND: searchTokens.map((variants) => ({
+              OR: variants.flatMap((token) => [
+                { title: { contains: token, mode: 'insensitive' as const } },
+                { description: { contains: token, mode: 'insensitive' as const } },
+                { category: { name: { contains: token, mode: 'insensitive' as const } } },
+                { subcategory: { name: { contains: token, mode: 'insensitive' as const } } }
+              ])
+            }))
+          }
         : {}),
       ...(input.sellerId ? { sellerId: input.sellerId } : {}),
       ...(input.verified !== undefined

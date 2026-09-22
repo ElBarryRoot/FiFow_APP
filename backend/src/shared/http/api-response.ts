@@ -11,6 +11,7 @@ export function sendSuccess<T>(
   response: Response,
   { data, message = 'Opération effectuée avec succès.', meta, statusCode = 200 }: SuccessOptions<T>
 ) {
+  response.type('application/json; charset=utf-8');
   return response.status(statusCode).json({
     success: true,
     message,

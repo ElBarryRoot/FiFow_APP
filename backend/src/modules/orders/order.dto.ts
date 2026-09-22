@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client';
 import { getStorage } from '../../shared/storage/storage.service.js';
+import { orderStatusInfo } from './order-status.js';
 
 export const orderDetailInclude = {
   product: {
@@ -210,6 +211,7 @@ export function toOrderDto(order: OrderWithDetails, userId: string) {
     id: order.id,
     reference: order.reference,
     status: order.status,
+    statusInfo: orderStatusInfo(order.status),
     buyerId: order.buyerId,
     sellerId: order.sellerId,
     role: order.buyerId === userId ? 'BUYER' : 'SELLER',
@@ -280,6 +282,7 @@ export function toOrderSummaryDto(order: OrderSummary, userId: string) {
     id: order.id,
     reference: order.reference,
     status: order.status,
+    statusInfo: orderStatusInfo(order.status),
     buyerId: order.buyerId,
     sellerId: order.sellerId,
     role: order.buyerId === userId ? 'BUYER' : 'SELLER',

@@ -273,13 +273,21 @@ async function audit(
 
 async function getReportTarget(targetType: string, targetId: string) {
   if (targetType === 'PRODUCT') {
-    return prisma.product.findUnique({
+    const product = await prisma.product.findUnique({
       where: { id: targetId },
       include: {
         seller: { select: { id: true, fullName: true, email: true, status: true } },
         images: { where: { archivedAt: null }, orderBy: { sortOrder: 'asc' } }
       }
     });
+    if (!product) return null;
+    return {
+      ...product,
+      images: product.images.map((image) => ({
+        ...image,
+        url: getStorage().publicUrl(image.storageKey)
+      }))
+    };
   }
   if (targetType === 'USER') {
     return prisma.user.findUnique({
@@ -497,6 +505,8 @@ adminRoutes.get('/disputes/:id', validate(idSchema), asyncHandler(async (request
   } : null;
   const payout = row.order.payout ? { ...row.order.payout, amount: money(row.order.payout.amount) } : null;
   const { buyerSnapshot: _buyerSnapshot, sellerSnapshot: _sellerSnapshot, ...orderWithoutSnapshots } = row.order;
+  void _buyerSnapshot;
+  void _sellerSnapshot;
   const order = {
     ...orderWithoutSnapshots,
     totalAmount: money(row.order.totalAmount),
@@ -640,10 +650,26 @@ adminRoutes.get('/reports/:id', validate(idSchema), asyncHandler(async (request,
     }
   });
   if (!report) throw new ApiError(404, 'Signalement introuvable.', 'REPORT_NOT_FOUND');
+  const [relatedReports, moderationHistory] = await Promise.all([
+    prisma.report.findMany({
+      where: { targetType: report.targetType, targetId: report.targetId, id: { not: report.id } },
+      orderBy: { createdAt: 'desc' },
+      take: 20,
+      select: { id: true, reason: true, status: true, priority: true, createdAt: true, reporter: { select: { fullName: true } } }
+    }),
+    prisma.adminLog.findMany({
+      where: { targetType: report.targetType, targetId: report.targetId },
+      orderBy: { createdAt: 'desc' },
+      take: 30,
+      select: { id: true, action: true, note: true, createdAt: true, actor: { select: { fullName: true } } }
+    })
+  ]);
   return sendSuccess(response, {
     data: {
       ...report,
-      target: await getReportTarget(report.targetType, report.targetId)
+      target: await getReportTarget(report.targetType, report.targetId),
+      relatedReports,
+      moderationHistory
     }
   });
 }));
@@ -815,7 +841,8 @@ adminRoutes.post('/moderation/actions', validate(moderationSchema), asyncHandler
         ...(body.note ? { note: body.note } : {})
       }
     });
-    await audit(tx, request, body.action, body.targetType, body.targetId, undefined, undefined, body.note);
+    // Also retain the required moderation reason in the dossier audit trail.
+    await audit(tx, request, body.action, body.targetType, body.targetId, undefined, undefined, body.note ?? body.reason);
   });
   return sendSuccess(response, { data: null, message: 'Action de modération appliquée.' });
 }));

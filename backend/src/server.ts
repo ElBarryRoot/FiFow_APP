@@ -22,7 +22,7 @@ async function bootstrap() {
   const server = http.createServer(createApp());
   await initializeSocket(server);
   startMaintenance();
-  server.listen(env.PORT, () => {
+  server.listen(env.PORT, env.HOST, () => {
     logger.info('Fi Fow API v2 démarrée', {
       port: env.PORT,
       environment: env.NODE_ENV

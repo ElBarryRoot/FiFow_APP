@@ -10,6 +10,7 @@ import { authenticate, requireVerifiedEmail } from '../auth/auth.middleware.js';
 import { createNotification } from '../notifications/notification.service.js';
 import { emitDisputeUpdated, emitOrderUpdated } from '../../shared/realtime.js';
 import { orderService } from './order.service.js';
+import { assertOrderTransition } from './order-transitions.js';
 import { extendOrderReservations, releaseOrderReservations } from './inventory.service.js';
 import {
   createOrderSchema,
@@ -78,6 +79,7 @@ orderRoutes.patch('/:orderId/seller-confirm', validate(orderIdSchema), asyncHand
   const current = await participant(params.orderId, req.auth!.userId);
   if (current.sellerId !== req.auth!.userId) throw new ApiError(403, 'Action réservée au vendeur.', 'SELLER_ONLY');
   if (current.status !== 'AWAITING_SELLER_CONFIRMATION') throw new ApiError(409, 'Transition impossible.', 'INVALID_ORDER_TRANSITION');
+  assertOrderTransition(current.status, 'AWAITING_PAYMENT');
   const paymentExpiresAt = await orderService.paymentDeadline();
   const updated = await prisma.$transaction(async (tx) => {
     const changed = await tx.order.updateMany({

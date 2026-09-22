@@ -70,7 +70,10 @@ export function createApp() {
     );
   }
 
-  app.use('/api/v1', apiRoutes);
+  app.use('/api/v1', (_request, response, next) => {
+    response.setHeader('Content-Type', 'application/json; charset=utf-8');
+    next();
+  }, apiRoutes);
   app.use(notFound);
   app.use(errorHandler);
 

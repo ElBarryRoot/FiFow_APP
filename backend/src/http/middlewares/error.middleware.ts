@@ -48,7 +48,7 @@ export const errorHandler: ErrorRequestHandler = (error: unknown, request, respo
     stack: isProduction ? undefined : originalError.stack
   });
 
-  response.status(apiError.statusCode).json({
+  response.type('application/json; charset=utf-8').status(apiError.statusCode).json({
     success: false,
     message: apiError.statusCode >= 500 && isProduction ? 'Erreur interne du serveur.' : apiError.message,
     errorCode: apiError.errorCode,
