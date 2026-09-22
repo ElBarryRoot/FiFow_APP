@@ -115,7 +115,7 @@ export default function ProductActions({ product }) {
 function SmallAction({ as: Component = 'button', icon: Icon, label, danger, active, ...props }) {
   const nativeProps = Component === 'button' ? { type: 'button' } : {}
   return (
-    <Component aria-label={label} className={cn('flex h-12 min-w-0 items-center justify-center gap-1 rounded-lg border bg-white px-2 text-xs font-extrabold transition-colors sm:text-sm', danger ? 'border-red-100 text-fifow-red hover:bg-red-50' : 'border-fifow-border text-fifow-primary hover:border-violet-200 hover:bg-fifow-lavender', active && 'border-fifow-primary bg-fifow-lavender')} {...nativeProps} {...props}>
+    <Component aria-label={label} className={cn('flex h-12 min-w-0 items-center justify-center gap-1 rounded-2xl border border-white/80 bg-white/80 px-2 text-xs font-extrabold shadow-sm backdrop-blur transition-all hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fifow-primary focus-visible:ring-offset-2 sm:text-sm', danger ? 'text-fifow-red hover:border-red-100 hover:bg-red-50' : 'text-fifow-primary hover:border-violet-200 hover:bg-fifow-lavender', active && 'border-fifow-primary bg-fifow-lavender')} {...nativeProps} {...props}>
       <Icon className={cn('h-5 w-5 shrink-0', active && 'fill-current')} /><span className="hidden xl:inline">{label}</span>
     </Component>
   )

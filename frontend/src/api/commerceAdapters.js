@@ -168,7 +168,8 @@ export function toOrderView(order, currentUserId) {
     role: currentUserId
       ? (sellerId === currentUserId ? 'seller' : buyerId === currentUserId ? 'buyer' : String(order.role || '').toLowerCase() || null)
       : String(order.role || '').toLowerCase() || null,
-    statusLabel: orderStatusLabels[order.status] || order.status,
+    statusInfo: order.statusInfo || null,
+    statusLabel: order.statusInfo?.label || orderStatusLabels[order.status] || order.status,
     time: formatRelativeDate(order.updatedAt || order.createdAt),
     statusHistory: statusHistory.map((entry) => ({
       ...entry,

@@ -1,4 +1,4 @@
-import { AlertTriangle, Ban, CheckCircle2, CreditCard, MessageCircle, PackageCheck, Send, Star, Store } from 'lucide-react'
+import { AlertTriangle, Ban, CheckCircle2, CircleHelp, CreditCard, MessageCircle, PackageCheck, Send, Star, Store } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import Button from '../ui/Button.jsx'
 import { canCancelOrder, canDisputeOrder, isOrderBuyer, isOrderSeller } from '../../lib/commerce.js'
@@ -23,6 +23,10 @@ export default function OrderActions({ order, userId, pendingAction, onAction, o
           Ouvrir la conversation
         </Button>
       ) : null}
+
+      <Button as={Link} to={`/support?order=${encodeURIComponent(order.id)}`} variant="ghost" icon={CircleHelp} className="w-full">
+        Contacter l’assistance
+      </Button>
 
       {canCancel || canDispute ? (
         <div className="border-t border-fifow-border pt-4">

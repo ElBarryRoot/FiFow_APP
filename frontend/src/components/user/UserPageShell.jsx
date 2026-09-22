@@ -19,7 +19,7 @@ export default function UserPageShell({
       <section className="marketplace-container py-4 sm:py-5 lg:py-7">
         <div className="mb-4 border-b border-fifow-border pb-3 sm:mb-5 sm:pb-4">
           {backTo ? (
-            <Link to={backTo} className="mb-4 inline-flex h-8 items-center gap-2 rounded-md px-1 text-sm font-extrabold text-fifow-secondary transition hover:bg-fifow-lavender hover:text-fifow-primary">
+            <Link to={backTo} className="mb-4 inline-flex h-11 items-center gap-2 rounded-lg px-2 text-sm font-extrabold text-fifow-secondary transition hover:bg-fifow-lavender hover:text-fifow-primary focus:outline-none focus:ring-4 focus:ring-violet-100">
               <ArrowLeft className="h-4 w-4" /> {backLabel}
             </Link>
           ) : null}

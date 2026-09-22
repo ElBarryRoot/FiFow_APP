@@ -23,16 +23,18 @@ export default function BottomNav() {
   const auth = useAuth()
   const items = auth.isAuthenticated ? connectedItems : guestItems
   return (
-    <nav className="fixed inset-x-2 bottom-2 z-50 rounded-2xl border border-fifow-border/90 bg-white/95 pb-[calc(var(--safe-bottom)+0.25rem)] pt-1 shadow-[0_-10px_28px_rgba(15,23,42,0.14)] backdrop-blur-xl sm:inset-x-4 lg:hidden">
-      <div className="mx-auto grid max-w-[430px] grid-cols-5 items-end px-2">
+    <nav aria-label="Navigation mobile" className="fixed inset-x-2 bottom-2 z-50 overflow-visible rounded-[22px] border border-white/80 bg-white/90 pb-[calc(var(--safe-bottom)+0.35rem)] pt-1.5 shadow-[0_12px_34px_rgba(15,23,42,0.16)] backdrop-blur-2xl sm:inset-x-4 lg:hidden">
+      <div className="mx-auto grid max-w-[520px] grid-cols-5 items-end px-1">
         {items.map((item) => (
-          <NavLink key={item.label} to={item.to} className={({ isActive }) => cn('flex flex-col items-center justify-end gap-1 text-xs font-bold transition', isActive ? 'text-fifow-primary' : 'text-slate-500')}>
+          <NavLink key={item.label} to={item.to} className={({ isActive }) => cn('group flex min-h-12 flex-col items-center justify-end gap-0.5 rounded-xl pb-0.5 text-[10px] font-extrabold tracking-[-0.01em] transition duration-200 focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-200', isActive ? 'text-fifow-primary' : 'text-slate-500 active:text-fifow-primary')}>
             {item.primary ? (
-              <span className="-mt-7 grid h-14 w-14 place-items-center rounded-full border-[5px] border-white bg-fifow-primary text-white shadow-float">
-                <item.icon className="h-7 w-7" />
+              <span className="-mt-9 grid h-[62px] w-[62px] place-items-center rounded-[22px] border-[5px] border-fifow-bg bg-gradient-to-br from-[#7857ea] to-fifow-primary text-white shadow-[0_12px_24px_rgba(90,53,214,0.38)] transition duration-200 group-active:scale-95">
+                <item.icon className="h-7 w-7 stroke-[2.5]" />
               </span>
             ) : (
-              <item.icon className="h-6 w-6" />
+              <span className="grid h-8 w-11 place-items-center rounded-xl transition duration-200 group-aria-[current=page]:bg-fifow-lavender">
+                <item.icon className="h-[21px] w-[21px] transition duration-200 group-hover:scale-105" />
+              </span>
             )}
             <span>{item.label}</span>
           </NavLink>

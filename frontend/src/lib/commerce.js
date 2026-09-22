@@ -8,6 +8,26 @@ export const handoverLabels = {
 }
 
 export const orderStatusConfig = {
+  PENDING_SELLER_CONFIRMATION: {
+    label: 'Confirmation du vendeur attendue', shortLabel: 'À confirmer',
+    description: 'Le vendeur doit confirmer la disponibilité avant le paiement.', tone: 'warning'
+  },
+  SELLER_CONFIRMED: {
+    label: 'Disponibilité confirmée', shortLabel: 'Confirmée',
+    description: 'Le produit est confirmé et peut passer au paiement sécurisé.', tone: 'primary'
+  },
+  PAYMENT_PENDING: {
+    label: 'Paiement attendu', shortLabel: 'À payer',
+    description: 'La commande est confirmée. Le paiement sécurisé peut être effectué.', tone: 'primary'
+  },
+  PAYMENT_CONFIRMED: {
+    label: 'Paiement sécurisé', shortLabel: 'Payée',
+    description: 'Le paiement est conservé par Fi Fow pendant la transaction.', tone: 'success'
+  },
+  DELIVERED: {
+    label: 'Livraison effectuée', shortLabel: 'Livrée',
+    description: 'La livraison a été signalée. Confirmez la réception après vérification.', tone: 'success'
+  },
   AWAITING_SELLER_CONFIRMATION: {
     label: 'Confirmation du vendeur attendue',
     shortLabel: 'À confirmer',
@@ -49,6 +69,10 @@ export const orderStatusConfig = {
     shortLabel: 'Livraison',
     description: 'Le produit est en cours d’acheminement.',
     tone: 'primary',
+  },
+  IN_TRANSIT: {
+    label: 'En cours d’acheminement', shortLabel: 'En route',
+    description: 'Le produit est en cours d’acheminement vers le point convenu.', tone: 'primary'
   },
   RECEIVED: {
     label: 'Réception signalée',
@@ -102,9 +126,16 @@ export const boostStatusConfig = {
 }
 
 export function orderStatus(status) {
-  return orderStatusConfig[status] || {
-    label: status || 'Statut indisponible',
-    shortLabel: status || 'Inconnu',
+  const aliases = {
+    AWAITING_SELLER_CONFIRMATION: 'PENDING_SELLER_CONFIRMATION',
+    AWAITING_PAYMENT: 'PAYMENT_PENDING',
+    PAID: 'PAYMENT_CONFIRMED',
+    IN_DELIVERY: 'IN_TRANSIT'
+  }
+  const resolvedStatus = aliases[status] || status
+  return orderStatusConfig[resolvedStatus] || {
+    label: resolvedStatus || 'Statut indisponible',
+    shortLabel: resolvedStatus || 'Inconnu',
     description: 'Le statut de cette commande est en cours de synchronisation.',
     tone: 'neutral',
   }

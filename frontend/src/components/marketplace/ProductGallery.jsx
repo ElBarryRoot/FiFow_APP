@@ -10,10 +10,10 @@ export default function ProductGallery({ product, className }) {
 
   return (
     <>
-      <div className={cn('overflow-hidden rounded-lg border border-fifow-border bg-white lg:flex lg:h-[400px] lg:flex-col xl:h-[440px]', className)}>
+      <div className={cn('overflow-hidden rounded-2xl border border-white/80 bg-white shadow-soft lg:flex lg:h-[400px] lg:flex-col xl:h-[440px]', className)}>
         <button type="button" onClick={() => setZoomed(true)} className="group relative block aspect-[4/3] max-h-[680px] w-full overflow-hidden bg-slate-100 lg:min-h-0 lg:flex-1 lg:aspect-auto" aria-label="Agrandir la photo">
           <img src={activeImage} alt={product.title} decoding="async" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/assets/empty-product.svg' }} className="h-full w-full object-contain transition-transform duration-500 group-hover:scale-[1.015]" />
-          <span className="absolute right-4 top-4 grid h-10 w-10 place-items-center rounded-lg bg-white/95 text-fifow-dark shadow-card backdrop-blur">
+          <span className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-2xl border border-white/80 bg-white/85 text-fifow-dark shadow-card backdrop-blur-xl">
             <Maximize2 className="h-5 w-5" />
           </span>
         </button>
@@ -24,7 +24,7 @@ export default function ProductGallery({ product, className }) {
                 key={image}
                 type="button"
                 onClick={() => setActiveIndex(index)}
-                className={cn('h-16 w-20 shrink-0 overflow-hidden rounded-md border-2 bg-white p-0.5 transition', index === activeIndex ? 'border-fifow-primary' : 'border-transparent hover:border-violet-200')}
+                className={cn('h-16 w-20 shrink-0 overflow-hidden rounded-xl border-2 bg-white p-0.5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-fifow-primary focus-visible:ring-offset-2', index === activeIndex ? 'border-fifow-primary' : 'border-transparent hover:border-violet-200')}
                 aria-label={`Afficher la photo ${index + 1}`}
               >
                 <img src={image} alt="" loading="lazy" decoding="async" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/assets/empty-product.svg' }} className="h-full w-full rounded object-cover" />
@@ -35,11 +35,11 @@ export default function ProductGallery({ product, className }) {
       </div>
 
       {zoomed ? (
-        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/90 p-4" role="dialog" aria-modal="true" aria-label="Photo agrandie">
-          <button type="button" onClick={() => setZoomed(false)} aria-label="Fermer" className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-lg bg-white text-fifow-dark">
+        <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-950/90 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-label="Photo agrandie">
+          <button type="button" onClick={() => setZoomed(false)} aria-label="Fermer" className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-2xl border border-white/70 bg-white/90 text-fifow-dark shadow-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
             <X className="h-6 w-6" />
           </button>
-          <img src={activeImage} alt={product.title} decoding="async" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/assets/empty-product.svg' }} className="max-h-[88vh] max-w-[94vw] rounded-lg object-contain" />
+          <img src={activeImage} alt={product.title} decoding="async" onError={(event) => { event.currentTarget.onerror = null; event.currentTarget.src = '/assets/empty-product.svg' }} className="max-h-[88vh] max-w-[94vw] rounded-2xl object-contain" />
         </div>
       ) : null}
     </>

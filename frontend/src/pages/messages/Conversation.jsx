@@ -19,7 +19,7 @@ import ConfirmDialog from '../../components/commerce/ConfirmDialog.jsx'
 import { useFormattedGNFInput } from '../../components/product-publish/moneyInput.js'
 
 const handoverLabels = { HAND_TO_HAND: 'Remise en main propre', HOME_DELIVERY: 'Livraison à domicile', PICKUP_POINT: 'Point de retrait' }
-const offerLabels = { PENDING: 'En attente', ACCEPTED: 'Acceptée', REJECTED: 'Refusée', COUNTERED: 'Contre-proposée', EXPIRED: 'Expirée', CANCELLED: 'Annulée' }
+const offerLabels = { PENDING: 'En attente de réponse', ACCEPTED: 'Acceptée', REJECTED: 'Refusée', COUNTERED: 'Contre-proposée', EXPIRED: 'Expirée', CANCELLED: 'Annulée', WITHDRAWN: 'Annulée' }
 const acceptedImageTypes = new Set(['image/jpeg', 'image/png', 'image/webp', 'image/heic', 'image/heif'])
 
 export default function Conversation() {
@@ -41,6 +41,7 @@ export default function Conversation() {
   const [offerOpen, setOfferOpen] = useState(searchParams.get('intent') === 'buy')
   const [counteringOffer, setCounteringOffer] = useState(null)
   const [offerAmount, setOfferAmount] = useState('')
+  const [offerMessage, setOfferMessage] = useState('')
   const [handoverMode, setHandoverMode] = useState('HAND_TO_HAND')
   const [historySeededFor, setHistorySeededFor] = useState(null)
   const [archiveOpen, setArchiveOpen] = useState(false)
@@ -256,12 +257,14 @@ export default function Conversation() {
     event.preventDefault()
     if (!/^[1-9][0-9]{2,14}$/.test(offerAmount)) return showToast('Saisissez un montant valide.', { type: 'error' })
     if (!allowedHandoverModes.includes(handoverMode)) return showToast('Choisissez un mode de remise disponible.', { type: 'error' })
-    const input = { amount: offerAmount, handoverMode }
+    const input = { amount: offerAmount, handoverMode, ...(offerMessage.trim() ? { message: offerMessage.trim() } : {}) }
     offerMutation.mutate(counteringOffer ? { type: 'respond', offerId: counteringOffer.id, input: { action: 'COUNTER', ...input } } : { type: 'create', input })
   }
 
   function openNewOffer() {
     setCounteringOffer(null)
+    setOfferAmount('')
+    setOfferMessage('')
     setOfferOpen(true)
   }
 
@@ -281,6 +284,7 @@ export default function Conversation() {
     if (action === 'COUNTER') {
       setCounteringOffer(offer)
       setOfferAmount(offer.amount)
+      setOfferMessage('')
       setHandoverMode(offer.handoverMode)
       setOfferOpen(true)
       return
@@ -310,7 +314,7 @@ export default function Conversation() {
         </Card>
         <aside className="hidden space-y-4 xl:block xl:sticky xl:top-[92px]"><Card className="p-4"><Link to={`/products/${conversation.productSlug}`} className="block"><img src={conversation.image} alt={conversation.productTitle} className="aspect-[4/3] w-full rounded-lg object-cover" /><h2 className="mt-4 text-lg font-black text-fifow-dark">{conversation.productTitle}</h2><p className="mt-1 text-xl font-black text-fifow-primary">{formatGNF(conversation.price)}</p><p className="mt-2 flex items-center gap-2 text-sm font-bold text-fifow-secondary"><MapPin className="h-4 w-4 text-fifow-primary" /> {conversation.location || 'Guinée'}</p></Link>{canOffer ? <Button type="button" variant="secondary" icon={HandCoins} onClick={openNewOffer} aria-haspopup="dialog" className="mt-4 w-full">Proposer un prix</Button> : null}</Card><HumanTrustPanel title="Avant de conclure" items={['Demandez l’état réel du produit', 'Confirmez le lieu exact', 'Gardez une trace de l’échange']} /><div className="flex gap-2 rounded-lg border border-emerald-100 bg-fifow-mint p-4"><ShieldCheck className="h-5 w-5 shrink-0 text-fifow-green" /><p className="text-sm font-semibold leading-6 text-fifow-secondary">Ne partagez jamais votre mot de passe ou un code de validation.</p></div></aside>
       </div>
-      {offerOpen ? <OfferDialog amount={offerAmount} setAmount={setOfferAmount} handoverMode={handoverMode} setHandoverMode={setHandoverMode} allowedModes={allowedHandoverModes} price={conversation.price} counter={Boolean(counteringOffer)} loading={offerMutation.isPending} onClose={() => { setOfferOpen(false); setCounteringOffer(null) }} onSubmit={submitOffer} /> : null}
+      {offerOpen ? <OfferDialog amount={offerAmount} setAmount={setOfferAmount} message={offerMessage} setMessage={setOfferMessage} handoverMode={handoverMode} setHandoverMode={setHandoverMode} allowedModes={allowedHandoverModes} price={counteringOffer?.amount || conversation.price} counter={Boolean(counteringOffer)} loading={offerMutation.isPending} onClose={() => { setOfferOpen(false); setCounteringOffer(null) }} onSubmit={submitOffer} /> : null}
       <ConfirmDialog open={archiveOpen} title="Archiver cette conversation ?" description="Elle disparaîtra de votre liste. Un nouveau message la rendra de nouveau visible." confirmLabel="Archiver" loading={archiveMutation.isPending} onClose={() => setArchiveOpen(false)} onConfirm={() => archiveMutation.mutate()} />
     </UserPageShell>
   )
@@ -339,10 +343,10 @@ function OfferCard({ offer, conversation, currentUserId, onRespond, loading }) {
     handoverMode: offer.handoverMode,
   }).toString()
   const HandoverIcon = offer.handoverMode === 'HOME_DELIVERY' ? Truck : offer.handoverMode === 'HAND_TO_HAND' ? Handshake : Store
-  return <div className="mx-auto max-w-lg rounded-lg border border-violet-200 bg-white p-4 shadow-card"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-fifow-primary">{offer.creatorId === currentUserId ? 'Votre proposition' : 'Proposition reçue'}</p><p className="mt-1 text-2xl font-black text-fifow-dark">{formatGNF(Number(offer.amount))}</p><p className="mt-1 flex items-center gap-2 text-sm font-semibold text-fifow-secondary"><HandoverIcon className="h-4 w-4" />{handoverLabels[offer.handoverMode]}</p>{offer.message ? <p className="mt-2 text-sm text-fifow-secondary">{offer.message}</p> : null}</div><span className={cn('rounded-full px-3 py-1 text-xs font-extrabold', status === 'ACCEPTED' ? 'bg-emerald-50 text-fifow-green' : status === 'PENDING' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-fifow-secondary')}>{offerLabels[status] || status}</span></div>{actionable ? <div className="mt-4 grid grid-cols-3 gap-2"><Button size="sm" variant="danger" disabled={loading} onClick={() => onRespond(offer, 'REJECT')}>Refuser</Button><Button size="sm" variant="secondary" disabled={loading} onClick={() => onRespond(offer, 'COUNTER')}>Contrer</Button><Button size="sm" disabled={loading} onClick={() => onRespond(offer, 'ACCEPT')}>Accepter</Button></div> : null}{canCreateOrder && productRouteId ? <Button as={Link} to={`/products/${productRouteId}/buy?${checkoutQuery}`} icon={ShoppingBag} className="mt-4 w-full">Créer la commande</Button> : null}{linkedOrderId && conversation?.buyerId === currentUserId ? <Button as={Link} to={`/orders/${linkedOrderId}`} variant="secondary" className="mt-4 w-full">Voir la commande</Button> : null}</div>
+  return <div className="mx-auto max-w-lg rounded-lg border border-violet-200 bg-white p-4 shadow-card"><div className="flex items-start justify-between gap-3"><div><p className="text-xs font-black uppercase text-fifow-primary">{offer.creatorId === currentUserId ? 'Vous avez proposé' : 'Nouvelle proposition reçue'}</p><p className="mt-1 text-2xl font-black text-fifow-dark">{formatGNF(Number(offer.amount))}</p><p className="mt-1 flex items-center gap-2 text-sm font-semibold text-fifow-secondary"><HandoverIcon className="h-4 w-4" />{handoverLabels[offer.handoverMode]}</p>{offer.message ? <p className="mt-2 text-sm text-fifow-secondary">{offer.message}</p> : null}</div><span className={cn('rounded-full px-3 py-1 text-xs font-extrabold', status === 'ACCEPTED' ? 'bg-emerald-50 text-fifow-green' : status === 'PENDING' ? 'bg-amber-50 text-amber-700' : 'bg-slate-100 text-fifow-secondary')}>{offerLabels[status] || status}</span></div>{actionable ? <div className="mt-4 grid grid-cols-3 gap-2"><Button size="sm" variant="danger" disabled={loading} onClick={() => onRespond(offer, 'REJECT')}>Refuser</Button><Button size="sm" variant="secondary" disabled={loading} onClick={() => onRespond(offer, 'COUNTER')}>Contrer</Button><Button size="sm" disabled={loading} onClick={() => onRespond(offer, 'ACCEPT')}>Accepter</Button></div> : null}{canCreateOrder && productRouteId ? <Button as={Link} to={`/products/${productRouteId}/buy?${checkoutQuery}`} icon={ShoppingBag} className="mt-4 w-full">Créer la commande</Button> : null}{linkedOrderId && conversation?.buyerId === currentUserId ? <Button as={Link} to={`/orders/${linkedOrderId}`} variant="secondary" className="mt-4 w-full">Voir la commande</Button> : null}</div>
 }
 
-function OfferDialog({ amount, setAmount, handoverMode, setHandoverMode, allowedModes, price, counter, loading, onClose, onSubmit }) {
+function OfferDialog({ amount, setAmount, message, setMessage, handoverMode, setHandoverMode, allowedModes, price, counter, loading, onClose, onSubmit }) {
   const amountInput = useFormattedGNFInput({ value: amount, onValueChange: setAmount })
   const dialogRef = useRef(null)
   const onCloseRef = useRef(onClose)
@@ -398,7 +402,7 @@ function OfferDialog({ amount, setAmount, handoverMode, setHandoverMode, allowed
           <div>
             <p className="text-xs font-black uppercase text-fifow-primary">Négociation</p>
             <h2 id="offer-title" className="mt-1 text-2xl font-black text-fifow-dark">{counter ? 'Faire une contre-proposition' : 'Proposer un prix'}</h2>
-            <p id="offer-description" className="mt-1 text-sm font-semibold text-fifow-secondary">Prix affiché : {formatGNF(price)}</p>
+            <p id="offer-description" className="mt-1 text-sm font-semibold text-fifow-secondary">Prix actuel : {formatGNF(price)}</p>
           </div>
           <button type="button" onClick={onClose} disabled={loading} aria-label="Fermer" className="grid h-9 w-9 place-items-center rounded-lg bg-slate-100 text-fifow-secondary transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50"><X className="h-5 w-5" /></button>
         </div>
@@ -413,6 +417,12 @@ function OfferDialog({ amount, setAmount, handoverMode, setHandoverMode, allowed
         <p id="offer-amount-help" aria-live="polite" className={cn('mt-2 text-sm font-semibold', hasValidAmount ? 'text-fifow-secondary' : 'text-fifow-muted')}>
           {hasValidAmount ? `Vous proposez ${formatGNF(Number(amount))}.` : 'Saisissez au moins 100 GNF.'}
         </p>
+
+        <label className="mt-5 block" htmlFor="offer-message">
+          <span className="text-sm font-extrabold text-fifow-dark">Message <span className="font-semibold text-fifow-muted">(facultatif)</span></span>
+          <textarea id="offer-message" value={message} onChange={(event) => setMessage(event.target.value)} disabled={loading} maxLength={500} rows={3} placeholder="Ex. Je peux remettre l’article cette semaine." className="mt-2 w-full resize-y rounded-lg border border-fifow-border px-4 py-3 text-sm font-semibold leading-6 text-fifow-dark outline-none transition placeholder:text-fifow-muted focus:border-fifow-primary focus:ring-4 focus:ring-violet-100 disabled:bg-slate-50" />
+          <span className="mt-1 block text-right text-xs font-bold text-fifow-muted">{message.length}/500</span>
+        </label>
 
         <fieldset className="mt-5" disabled={loading}>
           <legend className="text-sm font-extrabold text-fifow-dark">Mode de remise</legend>

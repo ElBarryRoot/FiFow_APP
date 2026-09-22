@@ -52,7 +52,7 @@ export default function ProductDetail() {
         <div className="grid items-start gap-4 sm:gap-5 lg:grid-cols-[minmax(0,0.98fr)_minmax(360px,0.72fr)] xl:grid-cols-[minmax(0,720px)_minmax(380px,1fr)] xl:gap-7">
           <ProductGallery product={product} />
           <aside className="space-y-4 lg:sticky lg:top-[92px]">
-            <section className="rounded-lg border border-fifow-border bg-white p-4 shadow-card sm:p-6 lg:min-h-[400px] xl:min-h-[440px]">
+            <section className="glass-panel p-4 sm:p-6 lg:min-h-[400px] xl:min-h-[440px]">
               <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_280px] lg:gap-7">
                 <div className="min-w-0">
                 <div className="flex flex-wrap gap-2">
@@ -79,11 +79,11 @@ export default function ProductDetail() {
           </aside>
         </div>
         <div className="mt-5 grid items-stretch gap-4 lg:grid-cols-2 lg:gap-5">
-          <section className="flex items-start gap-3 rounded-lg border border-emerald-100 bg-fifow-mint p-4">
+          <section className="flex items-start gap-3 rounded-2xl border border-emerald-100 bg-fifow-mint/80 p-4 shadow-soft">
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-fifow-green" />
             <div><h2 className="font-extrabold text-fifow-dark">{product.listingMode === 'DONATION' ? 'Don encadré par Fi Fow' : 'Paiement sécurisé'}</h2><p className="mt-1 text-sm font-semibold leading-6 text-fifow-secondary">{product.listingMode === 'DONATION' ? 'Aucun paiement demandé. Gardez les échanges dans Fi Fow et convenez de la remise avec le vendeur.' : 'Gardez les échanges dans Fi Fow et confirmez la réception seulement après vérification.'}</p></div>
           </section>
-          <section className="rounded-lg border border-fifow-border bg-white p-5">
+          <section className="bento-card p-5">
             <h2 className="text-lg font-black text-fifow-dark">Description</h2>
             <p className={`mt-2 whitespace-pre-line text-sm font-medium leading-6 text-fifow-secondary ${descriptionOpen ? '' : 'line-clamp-5'}`}>{product.description}</p>
             {product.description?.length > 300 ? <button type="button" onClick={() => setDescriptionOpen((current) => !current)} className="mt-2 text-sm font-extrabold text-fifow-primary">{descriptionOpen ? 'Réduire' : 'Voir la description complète'}</button> : null}
@@ -122,7 +122,7 @@ function ListingAvailability({ product }) {
 }
 
 function DetailLoader() {
-  return <MainLayout><AppHeader /><div className="marketplace-container grid animate-pulse gap-6 py-7 lg:grid-cols-2"><div className="aspect-[4/3] rounded-lg bg-slate-100" /><div className="h-[520px] rounded-lg bg-slate-100" /></div></MainLayout>
+  return <MainLayout><AppHeader /><div className="marketplace-container grid animate-pulse gap-6 py-7 lg:grid-cols-2"><div className="aspect-[4/3] rounded-2xl bg-slate-100" /><div className="h-[520px] rounded-2xl bg-slate-100" /></div></MainLayout>
 }
 
 function DetailError({ onRetry }) {

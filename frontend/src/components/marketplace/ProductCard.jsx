@@ -44,7 +44,7 @@ export default function ProductCard({ product, compact = false, horizontal = fal
       onMouseEnter={prefetchProduct}
       onFocus={prefetchProduct}
       className={cn(
-        'group flex min-w-0 flex-col overflow-hidden rounded-lg border border-fifow-border bg-white shadow-card transition duration-200 hover:border-violet-200 hover:shadow-soft',
+        'group flex min-w-0 flex-col overflow-hidden rounded-2xl border border-white/80 bg-white shadow-card transition duration-200 hover:-translate-y-0.5 hover:border-violet-200 hover:shadow-soft focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-200',
         horizontal && 'w-[78vw] max-w-[340px] shrink-0 sm:w-[320px] lg:w-auto lg:max-w-none',
       )}
     >
@@ -69,13 +69,13 @@ export default function ProductCard({ product, compact = false, horizontal = fal
           onClick={handleFavorite}
           aria-label={favorite ? 'Retirer des favoris' : 'Ajouter aux favoris'}
           aria-pressed={favorite}
-          className="absolute right-3 top-3 grid h-10 w-10 place-items-center rounded-full border border-white/80 bg-white/95 text-fifow-dark shadow-card backdrop-blur transition hover:text-fifow-red active:scale-95"
+          className="absolute right-3 top-3 grid h-11 w-11 place-items-center rounded-2xl border border-white/80 bg-white/85 text-fifow-dark shadow-card backdrop-blur-xl transition hover:text-fifow-red active:scale-95 focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-200"
         >
           <Heart className={cn('h-5 w-5', favorite && 'fill-fifow-red text-fifow-red')} />
         </button> : null}
       </div>
 
-      <div className="flex min-h-[150px] flex-1 flex-col p-4">
+      <div className="flex min-h-[154px] flex-1 flex-col p-4 sm:p-5">
         <div className="flex items-start justify-between gap-2">
           <h3 className="line-clamp-2 min-h-10 text-sm font-extrabold leading-5 text-fifow-dark sm:text-base">{product.title}</h3>
           {product.condition ? <span className="mt-0.5 shrink-0 text-[11px] font-bold text-fifow-muted">{product.condition}</span> : null}

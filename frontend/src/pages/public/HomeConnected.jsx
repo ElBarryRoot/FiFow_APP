@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
-import { Sparkles } from 'lucide-react'
+import { Heart, MapPin, Plus, Sparkles } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import AppHeader from '../../components/layout/AppHeader.jsx'
 import MainLayout from '../../components/layout/MainLayout.jsx'
 import CategoryPills from '../../components/marketplace/CategoryPills.jsx'
@@ -25,6 +26,7 @@ export default function HomeConnected() {
       <div className="desktop-container">
         <CategoryPills connected />
         <ConnectedHero />
+        <QuickActions />
         {boosted.isError || recent.isError ? <FeedError onRetry={() => { boosted.refetch(); recent.refetch() }} /> : null}
         {boosted.isLoading || boosted.data?.items?.length ? <ProductSection title="Annonces boostées" products={boosted.data?.items} loading={boosted.isLoading} horizontal /> : null}
         {recent.isLoading || recentItems.length ? <ProductSection title="À découvrir" products={recentItems.slice(0, 6)} loading={recent.isLoading} horizontal icon={Sparkles} /> : <ProductSection title="Produits récents" products={[]} />}
@@ -32,6 +34,15 @@ export default function HomeConnected() {
       </div>
     </MainLayout>
   )
+}
+
+function QuickActions() {
+  const actions = [
+    { label: 'Près de vous', to: '/products?sort=recent', icon: MapPin, tone: 'bg-violet-50 text-fifow-primary' },
+    { label: 'Mes favoris', to: '/favorites', icon: Heart, tone: 'bg-rose-50 text-rose-600' },
+    { label: 'Publier', to: '/products/new', icon: Plus, tone: 'bg-fifow-primary text-white' },
+  ]
+  return <section className="my-5 grid grid-cols-3 gap-3 sm:max-w-xl"><span className="sr-only">Raccourcis</span>{actions.map(({ label, to, icon: Icon, tone }) => <Link key={label} to={to} className="bento-card group flex min-h-24 flex-col justify-between focus:outline-none focus-visible:ring-4 focus-visible:ring-violet-200"><span className={`grid h-10 w-10 place-items-center rounded-xl ${tone}`}><Icon className="h-5 w-5" /></span><span className="mt-3 text-xs font-extrabold text-fifow-dark sm:text-sm">{label}</span></Link>)}</section>
 }
 
 function FeedError({ onRetry }) {

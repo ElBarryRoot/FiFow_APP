@@ -1,7 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { CheckCircle2, Gavel, UserCheck } from 'lucide-react'
 import { useMemo, useState } from 'react'
-import { useParams } from 'react-router-dom'
+import { Link, useParams } from 'react-router-dom'
 import { adminApi } from '../../api/admin.js'
 import { errorMessage } from '../../api/errors.js'
 import AdminConfirmDialog from '../../components/admin/AdminConfirmDialog.jsx'
@@ -92,6 +92,8 @@ export default function AdminReportDetail() {
             </div>
           </Card>
           <TargetPreview type={report.targetType} target={report.target} />
+          <RelatedReports reports={report.relatedReports} />
+          <ModerationHistory entries={report.moderationHistory} />
         </div>
 
         <aside className="space-y-4 xl:sticky xl:top-24">
@@ -152,13 +154,21 @@ export default function AdminReportDetail() {
   )
 }
 
+function RelatedReports({ reports = [] }) {
+  return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Signalements liés</h3>{reports.length ? <ul className="mt-3 divide-y divide-fifow-border">{reports.map((item) => <li key={item.id} className="flex items-center justify-between gap-3 py-3 text-sm"><Link to={`/admin/reports/${item.id}`} className="min-w-0 rounded-lg outline-none focus:ring-4 focus:ring-violet-100"><strong className="block text-fifow-dark hover:text-fifow-primary">{reasonLabel(item.reason)}</strong><span className="text-fifow-secondary">{item.reporter?.fullName || 'Utilisateur'} · {new Date(item.createdAt).toLocaleDateString('fr-FR')}</span></Link><AdminStatusBadge status={item.status} /></li>)}</ul> : <p className="mt-2 text-sm font-semibold text-fifow-secondary">Aucun autre signalement sur cette cible.</p>}</Card>
+}
+
+function ModerationHistory({ entries = [] }) {
+  return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Historique de modération</h3>{entries.length ? <ol className="mt-3 space-y-3">{entries.map((entry) => <li key={entry.id} className="rounded-lg bg-slate-50 p-3"><p className="text-sm font-black text-fifow-dark">{entry.action}</p><p className="mt-1 text-xs font-semibold text-fifow-secondary">{entry.actor?.fullName || 'Administrateur'} · {new Date(entry.createdAt).toLocaleString('fr-FR')}</p>{entry.note ? <p className="mt-1 text-sm text-fifow-secondary">{entry.note}</p> : null}</li>)}</ol> : <p className="mt-2 text-sm font-semibold text-fifow-secondary">Aucune action de modération enregistrée.</p>}</Card>
+}
+
 function Detail({ label, value }) {
   return <div><dt className="text-xs font-black uppercase text-fifow-muted">{label}</dt><dd className="mt-1 break-words text-sm font-bold text-fifow-dark">{value || '—'}</dd></div>
 }
 
 function TargetPreview({ type, target }) {
   if (!target) return <Card className="p-5"><p className="font-bold text-fifow-secondary">La cible n’est plus disponible.</p></Card>
-  if (type === 'PRODUCT') return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Annonce concernée</h3><div className="mt-4 flex gap-4">{target.images?.[0]?.url ? <img src={target.images[0].url} alt="" className="h-24 w-24 rounded-lg object-cover" /> : null}<div><p className="font-extrabold text-fifow-dark">{target.title}</p><p className="mt-1 text-sm font-semibold text-fifow-secondary">{target.seller?.fullName} · {target.seller?.email}</p><p className="mt-2 font-black text-fifow-primary">{formatAdminMoney(target.price)}</p><AdminStatusBadge status={target.status} className="mt-2" /></div></div></Card>
+  if (type === 'PRODUCT') return <Card className="p-5"><div className="flex items-center justify-between gap-3"><h3 className="text-lg font-black text-fifow-dark">Annonce concernée</h3><Link to={`/products/${target.slug || target.id}`} target="_blank" rel="noreferrer" className="rounded-lg text-sm font-extrabold text-fifow-primary outline-none hover:underline focus:ring-4 focus:ring-violet-100">Examiner l’annonce</Link></div><div className="mt-4 flex flex-col gap-4 sm:flex-row">{target.images?.[0]?.url ? <img src={target.images[0].url} alt={`Image principale de ${target.title}`} className="h-36 w-full rounded-lg object-cover sm:w-44" /> : null}<div><p className="font-extrabold text-fifow-dark">{target.title}</p><Link to={`/seller/${target.seller?.id}`} target="_blank" rel="noreferrer" className="mt-1 block rounded-lg text-sm font-semibold text-fifow-primary outline-none hover:underline focus:ring-4 focus:ring-violet-100">Voir le vendeur : {target.seller?.fullName || 'Profil vendeur'}</Link><p className="mt-1 text-sm font-semibold text-fifow-secondary">{target.seller?.email}</p><p className="mt-1 text-sm font-semibold text-fifow-secondary">{[target.quartier, target.commune].filter(Boolean).join(' · ') || 'Localisation non renseignée'}</p><p className="mt-2 font-black text-fifow-primary">{formatAdminMoney(target.price)}</p><AdminStatusBadge status={target.status} className="mt-2" /></div></div>{target.images?.length > 1 ? <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">{target.images.map((image, index) => <a key={image.id} href={image.url} target="_blank" rel="noreferrer" className="group relative overflow-hidden rounded-lg border border-fifow-border focus:outline-none focus:ring-4 focus:ring-violet-100"><img src={image.url} alt={`Image ${index + 1} de ${target.title}`} className="aspect-square w-full object-cover transition group-hover:scale-105" /><span className="sr-only">Ouvrir l’image {index + 1}</span></a>)}</div> : null}</Card>
   if (type === 'USER') return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Compte concerné</h3><dl className="mt-4 grid gap-4 sm:grid-cols-2"><Detail label="Nom" value={target.fullName} /><Detail label="Email" value={target.email} /><Detail label="Rôle" value={target.role} /><Detail label="Score de confiance" value={target.trustScore} /></dl></Card>
   if (type === 'MESSAGE') return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Message concerné</h3><p className="mt-3 whitespace-pre-wrap rounded-lg bg-slate-50 p-4 text-sm font-semibold leading-6 text-fifow-dark">{target.text || 'Message image'}</p>{target.mediaUrl ? <img src={target.mediaUrl} alt="Contenu signalé" className="mt-3 max-h-96 rounded-lg object-contain" /> : null}</Card>
   if (type === 'REVIEW') return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Avis concerné</h3><p className="mt-3 text-xl font-black text-fifow-orange">{target.rating}/5</p><p className="mt-2 whitespace-pre-wrap text-sm font-semibold leading-6 text-fifow-secondary">{target.comment}</p></Card>
@@ -166,4 +176,3 @@ function TargetPreview({ type, target }) {
   if (type === 'PAYMENT') return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Paiement concerné</h3><dl className="mt-4 grid gap-4 sm:grid-cols-2"><Detail label="Référence" value={target.internalReference} /><Detail label="Montant" value={formatAdminMoney(target.amount)} /><Detail label="Utilisateur" value={target.user?.fullName} /><Detail label="Statut" value={target.status} /></dl></Card>
   return <Card className="p-5"><h3 className="text-lg font-black text-fifow-dark">Cible concernée</h3><p className="mt-3 text-sm font-semibold text-fifow-secondary">Identifiant {shortId(target.id)}</p></Card>
 }
-

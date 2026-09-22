@@ -1,5 +1,5 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { MapPin, ReceiptText, ShieldCheck, UserRound } from 'lucide-react'
+import { ChevronDown, MapPin, ReceiptText, ShieldCheck, UserRound } from 'lucide-react'
 import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { errorMessage } from '../../api/errors.js'
@@ -24,6 +24,7 @@ export default function OrderDetail() {
   const queryClient = useQueryClient()
   const showToast = useToast()
   const [reasonAction, setReasonAction] = useState(null)
+  const [summaryOpen, setSummaryOpen] = useState(false)
   const orderQuery = useQuery({
     queryKey: queryKeys.order(id),
     queryFn: () => ordersApi.detail(id, { userId: auth.user.id }),
@@ -44,27 +45,14 @@ export default function OrderDetail() {
   if (orderQuery.isError || !orderQuery.data) return <UserPageShell title="Commande" backTo="/orders" backLabel="Retour aux commandes"><ErrorBlock title="Commande introuvable" message={errorMessage(orderQuery.error, 'Cette commande est indisponible.')} onRetry={orderQuery.refetch} /></UserPageShell>
 
   const order = orderQuery.data
-  const status = orderStatus(order.status)
+  const status = order.statusInfo || orderStatus(order.status)
   const product = orderProduct(order)
   const counterpart = orderCounterpart(order, auth.user.id)
   const latestPayment = order.payment || order.payments?.[0]
   const deliveryDetails = order.handoverDetails || order.delivery?.addressSnapshot || {}
 
   return (
-    <UserPageShell title="Détail de la commande" eyebrow="Transaction Fi Fow" subtitle={`Référence ${order.reference}`} backTo="/orders" backLabel="Retour aux commandes">
-      <section className="mb-6 rounded-lg border border-fifow-border bg-white p-5 shadow-card sm:p-6">
-        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <Badge variant={status.tone}>{status.shortLabel}</Badge>
-            <h2 className="mt-3 text-2xl font-black text-fifow-dark">{status.label}</h2>
-            <p className="mt-1 max-w-2xl text-sm font-semibold leading-6 text-fifow-secondary">{status.description}</p>
-          </div>
-          <div className="text-left sm:text-right">
-            <p className="text-xs font-black uppercase text-fifow-muted">Total</p>
-            <p className="mt-1 text-2xl font-black text-fifow-primary">{formatGNF(order.totalAmount)}</p>
-          </div>
-        </div>
-      </section>
+    <UserPageShell title={product.title || 'Commande'} eyebrow={`Commande ${order.reference}`} subtitle={status.label} actions={<Badge variant={status.tone}>{status.shortLabel}</Badge>} backTo="/orders" backLabel="Commandes">
 
       <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_370px]">
         <div className="space-y-5">
@@ -95,8 +83,11 @@ export default function OrderDetail() {
 
         <aside className="space-y-4 lg:sticky lg:top-24">
           <Card className="p-5">
-            <h2 className="flex items-center gap-2 text-lg font-black text-fifow-dark"><ReceiptText className="h-5 w-5 text-fifow-primary" /> Récapitulatif</h2>
-            <dl className="mt-4 space-y-3 text-sm font-semibold text-fifow-secondary">
+            <button type="button" className="flex w-full items-center justify-between gap-3 text-left lg:cursor-default" onClick={() => setSummaryOpen((open) => !open)} aria-expanded={summaryOpen}>
+              <span className="flex items-center gap-2 text-lg font-black text-fifow-dark"><ReceiptText className="h-5 w-5 text-fifow-primary" /> Récapitulatif</span>
+              <ChevronDown className={`h-5 w-5 text-fifow-muted transition lg:hidden ${summaryOpen ? 'rotate-180' : ''}`} />
+            </button>
+            <dl className={`${summaryOpen ? 'mt-4' : 'mt-4 hidden'} space-y-3 text-sm font-semibold text-fifow-secondary lg:block`}>
               <AmountItem label={order.itemCount > 1 ? `Articles (${order.itemCount})` : 'Produit'} value={order.itemAmount} />
               <AmountItem label="Protection de la transaction" value={order.buyerProtectionFee} />
               <AmountItem label="Livraison" value={order.deliveryFee} />
